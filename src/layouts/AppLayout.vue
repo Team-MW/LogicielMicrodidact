@@ -11,7 +11,9 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  MessageSquareText,
+  Globe
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -26,12 +28,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const isSidebarOpen = ref(true)
+const isProfileMenuOpen = ref(false)
 
 const navItems = [
   { name: 'Tableau de Bord', icon: LayoutDashboard, path: '/' },
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
   { name: 'Projets', icon: Briefcase, path: '/projects' },
   { name: 'Clients', icon: Users, path: '/customers' },
+  { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },
+  { name: 'Sites Web', icon: Globe, path: '/websites' },
 ]
 </script>
 
@@ -114,7 +119,7 @@ const navItems = [
             <span class="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
           </Button>
 
-          <DropdownMenu>
+          <DropdownMenu v-model:open="isProfileMenuOpen">
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" class="gap-3 p-1 h-auto hover:bg-transparent">
                 <div class="text-right hidden sm:block">
@@ -126,7 +131,7 @@ const navItems = [
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent class="w-56" align="end" force-mount>
+            <DropdownMenuContent class="w-56" align="end">
               <DropdownMenuLabel class="font-normal">
                 <div class="flex flex-col space-y-1">
                   <p class="text-sm font-medium leading-none">Admin User</p>

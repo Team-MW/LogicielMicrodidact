@@ -1,15 +1,24 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BarChart3, Users, DollarSign, Package, ArrowUpRight } from 'lucide-vue-next'
+import { store } from '@/store'
 
-const stats = [
+const customerCount = ref(0)
+
+const stats = ref([
   { name: 'Ventes Totales', value: '45,231.89 €', change: '+20.1%', icon: DollarSign, color: 'text-emerald-600' },
-  { name: 'Nouveaux Clients', value: '+2,350', change: '+180.1%', icon: Users, color: 'text-blue-600' },
+  { name: 'Clients Actifs', value: '0', change: '+180.1%', icon: Users, color: 'text-blue-600' },
   { name: 'Projets Actifs', value: '12', change: '+2', icon: Package, color: 'text-orange-600' },
   { name: 'Taux de Conversion', value: '4.3%', change: '+1.2%', icon: BarChart3, color: 'text-purple-600' },
-]
+])
+
+onMounted(() => {
+  customerCount.value = store.customers.length
+  stats.value[1].value = store.customers.length.toString()
+})
 
 const recentTransactions = [
   { id: 'TX1234', customer: 'Jean Dupont', product: 'Logiciel CRM', amount: '1,200.00 €', status: 'Payé', date: 'il y a 2h' },

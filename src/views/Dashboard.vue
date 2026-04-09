@@ -53,12 +53,15 @@ const recentTransactions = [
           <CardDescription>Visualisation de vos revenus ce mois-ci.</CardDescription>
         </CardHeader>
         <CardContent class="pl-2">
-          <div class="h-[300px] w-full flex items-end justify-between px-4 pb-2">
-            <!-- Simulated Chart -->
-            <div v-for="i in 12" :key="i" 
-              class="w-8 bg-primary/20 rounded-t-sm transition-all hover:bg-primary"
-              :style="{ height: Math.floor(Math.random() * 80 + 20) + '%' }"
-            ></div>
+          <div class="h-[250px] w-full flex items-end justify-between px-4 pb-2 border-b">
+            <div v-for="(h, i) in [40, 60, 45, 90, 100, 80, 50, 70, 85, 60, 75, 95]" :key="i" 
+              class="w-[6%] bg-primary/20 rounded-t-lg transition-all hover:bg-primary relative group"
+              :style="{ height: h + '%' }"
+            >
+              <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                {{ (h * 125).toLocaleString() }} €
+              </div>
+            </div>
           </div>
           <div class="flex justify-between px-4 text-xs text-muted-foreground mt-2">
             <span>Jan</span><span>Fev</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span>

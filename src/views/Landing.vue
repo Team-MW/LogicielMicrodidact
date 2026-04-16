@@ -13,7 +13,11 @@ import {
   BarChart3,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  Database,
+  Layers,
+  Terminal,
+  Server
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -26,362 +30,269 @@ onMounted(() => {
   })
 })
 
+const techStack = [
+  { name: 'Vue.js', icon: Globe },
+  { name: 'TypeScript', icon: Code2 },
+  { name: 'Node.js', icon: Server },
+  { name: 'PostgreSQL', icon: Database },
+  { name: 'Tailwind CSS', icon: Layers },
+  { name: 'Docker', icon: Terminal },
+  { name: 'AWS', icon: Globe },
+  { name: 'Flutter', icon: Smartphone }
+]
+
 const services = [
   {
     title: 'Développement Web',
-    description: 'Sites vitrines, e-commerce et applications web complexes sur mesure.',
+    description: 'Ecosystèmes web performants, d\'Apps complexes aux architectures micro-services.',
     icon: Globe,
-    color: 'blue'
+    color: 'from-blue-500 to-cyan-400'
   },
   {
-    title: 'Applications Mobiles',
-    description: 'Apps iOS et Android performantes et intuitives pour vos utilisateurs.',
+    title: 'Mobile Native',
+    description: 'Expériences mobiles immersives sur iOS et Android avec une fluidité absolue.',
     icon: Smartphone,
-    color: 'indigo'
+    color: 'from-indigo-600 to-blue-500'
   },
   {
-    title: 'Logiciels Métiers',
-    description: 'Solutions personnalisées pour automatiser et optimiser vos processus.',
+    title: 'Logiciels SaaS',
+    description: 'Plateformes industrielles scalables conçues pour la croissance exponentielle.',
     icon: Cpu,
-    color: 'violet'
+    color: 'from-violet-600 to-indigo-500'
   },
   {
-    title: 'Expertise Technique',
-    description: 'Audit, conseil et accompagnement dans vos choix technologiques.',
+    title: 'DevOps & Cloud',
+    description: 'Infrastructures haute disponibilité, sécurisées et optimisées pour le cloud.',
     icon: ShieldCheck,
-    color: 'emerald'
+    color: 'from-emerald-600 to-teal-500'
   }
 ]
 
 const features = [
   {
-    title: 'Design Premium',
-    description: 'Interfaces modernes et épurées centrées sur l\'utilisateur.',
-    icon: Sparkles
+    title: 'Architecture Future-Proof',
+    description: 'Nous codons pour demain, avec des structures scalables et maintenables.',
+    icon: Layers
   },
   {
-    title: 'Performance & Vitesse',
-    description: 'Optimisation maximale pour une expérience fluide.',
+    title: 'Vitesse de Livraison',
+    description: 'Méthodologie Agile pure pour des cycles de développement ultra-rapides.',
     icon: Zap
   },
   {
-    title: 'Analytiques Intégrés',
-    description: 'Suivez vos performances avec des tableaux de bord clairs.',
+    title: 'Intelligence Data',
+    description: 'Intégration intuitive de l\'IA et du Big Data au cœur de vos processus.',
     icon: BarChart3
   }
 ]
 </script>
 
 <template>
-  <div class="min-h-screen bg-white text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+  <div class="min-h-screen bg-[#050505] text-white selection:bg-indigo-500 selection:text-white overflow-x-hidden">
+    <!-- Animated Background Blobs -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+      <div class="absolute top-[10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[120px] animate-blob"></div>
+      <div class="absolute bottom-[20%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[140px] animate-blob animation-delay-2000"></div>
+      <div class="absolute top-[40%] right-[10%] w-[400px] h-[400px] bg-violet-600/15 rounded-full blur-[100px] animate-blob animation-delay-4000"></div>
+    </div>
+
     <!-- Navigation -->
     <nav 
-      class="fixed top-0 w-full z-50 transition-all duration-300 border-b"
-      :class="[scrolled ? 'bg-white/80 backdrop-blur-md py-3 border-slate-200 shadow-sm' : 'bg-transparent py-5 border-transparent']"
+      class="fixed top-0 w-full z-50 transition-all duration-500 border-b"
+      :class="[scrolled ? 'bg-black/60 backdrop-blur-xl py-4 border-white/10 shadow-2xl shadow-indigo-500/5' : 'bg-transparent py-6 border-transparent']"
     >
       <div class="container mx-auto px-6 flex items-center justify-between">
-        <div class="flex items-center gap-2 group cursor-pointer">
-          <div class="p-2 bg-indigo-600 rounded-xl group-hover:rotate-6 transition-transform">
-            <Code2 class="w-6 h-6 text-white" />
+        <div class="flex items-center gap-3 group cursor-pointer">
+          <div class="relative">
+            <div class="absolute -inset-2 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl blur opacity-40 group-hover:opacity-100 transition duration-500"></div>
+            <div class="relative p-2 bg-black rounded-xl border border-white/10 group-hover:rotate-12 transition-transform duration-500">
+              <Code2 class="w-6 h-6 text-indigo-400" />
+            </div>
           </div>
-          <span class="text-xl font-bold tracking-tight">MicroDidact</span>
+          <span class="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">MICRODIDACT</span>
         </div>
 
         <!-- Desktop Menu -->
-        <div class="hidden md:flex items-center gap-8">
-          <a href="#services" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Services</a>
-          <a href="#projets" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Projets</a>
-          <a href="#process" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Notre Process</a>
-          <div class="flex items-center gap-3">
-            <Button variant="ghost" class="text-indigo-600 font-semibold" @click="$router.push('/dashboard')">
+        <div class="hidden md:flex items-center gap-10">
+          <a v-for="link in ['Services', 'Projets', 'Process']" :key="link" :href="'#' + link.toLowerCase()" class="text-sm font-bold uppercase tracking-widest text-white/50 hover:text-white transition-colors">{{ link }}</a>
+          
+          <div class="flex items-center gap-4 pl-4 border-l border-white/10">
+            <button class="text-sm font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors" @click="$router.push('/dashboard')">
               Accès Logiciel
-            </Button>
-            <Button variant="default" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6">
-              Contactez-nous
+            </button>
+            <Button variant="default" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-8 py-6 font-bold uppercase tracking-widest text-xs h-auto shadow-[0_0_20px_rgba(79,70,229,0.4)]">
+              Contact
             </Button>
           </div>
         </div>
 
-        <!-- Mobile Menu Toggle -->
-        <button class="md:hidden p-2" @click="isMenuOpen = !isMenuOpen">
+        <button class="md:hidden p-2 text-white/70" @click="isMenuOpen = !isMenuOpen">
           <Menu v-if="!isMenuOpen" class="w-6 h-6" />
           <X v-else class="w-6 h-6" />
         </button>
       </div>
-
-      <!-- Mobile Menu -->
-      <div v-if="isMenuOpen" class="md:hidden absolute top-full left-0 w-full bg-white border-b border-slate-200 p-6 flex flex-col gap-4 shadow-xl">
-        <a href="#services" class="text-lg font-medium py-2" @click="isMenuOpen = false">Services</a>
-        <a href="#projets" class="text-lg font-medium py-2" @click="isMenuOpen = false">Projets</a>
-        <a href="#process" class="text-lg font-medium py-2" @click="isMenuOpen = false">Process</a>
-        <Button variant="outline" class="w-full text-indigo-600 border-indigo-600 py-6" @click="$router.push('/dashboard'); isMenuOpen = false">
-          Accès Logiciel
-        </Button>
-        <Button class="w-full bg-indigo-600 py-6">Parler d'un projet</Button>
-      </div>
     </nav>
 
     <!-- Hero Section -->
-    <section class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-      <!-- Background Elements -->
-      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10">
-        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-50 rounded-full blur-[120px] opacity-60"></div>
-        <div class="absolute bottom-[10%] right-[-5%] w-[30%] h-[30%] bg-blue-50 rounded-full blur-[100px] opacity-60"></div>
-      </div>
-
+    <section class="relative pt-40 pb-32 lg:pt-56 lg:pb-48">
       <div class="container mx-auto px-6">
-        <div class="max-w-4xl mx-auto text-center">
-          <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold mb-8 animate-fade-in">
-            <Sparkles class="w-4 h-4" />
-            <span>Solutions Digitales Haut de Gamme</span>
+        <div class="max-w-5xl mx-auto text-center relative z-10">
+          <div class="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-white/5 border border-white/10 text-indigo-400 text-xs font-black uppercase tracking-[0.2em] mb-12 animate-fade-in shadow-2xl">
+            <Sparkles class="w-3 h-3 text-yellow-400" />
+            <span>Forge numérique de précision</span>
           </div>
           
-          <h1 class="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.1]">
-            Nous donnons vie à vos <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500">ambitions digitales</span>
+          <h1 class="text-6xl lg:text-[8rem] font-black tracking-tighter mb-12 leading-[0.85] animate-reveal">
+            TRANSFORMEZ L'IDÉE EN <span class="text-transparent bg-clip-text bg-gradient-to-b from-indigo-400 via-indigo-600 to-blue-700">CODE</span>
           </h1>
           
-          <p class="text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl mx-auto">
-            MicroDidact conçoit et développe des logiciels sur mesure, des applications web et mobiles qui propulsent votre entreprise vers le futur.
+          <p class="text-xl lg:text-2xl text-white/50 mb-14 leading-relaxed max-w-2xl mx-auto font-medium">
+            Nous ne construisons pas seulement des logiciels. Nous bâtissons les moteurs de votre succès digital.
           </p>
           
-          <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-8 py-7 text-lg group">
-              Démarrer un projet
-              <ArrowRight class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
+            <Button size="lg" class="bg-white text-black hover:bg-indigo-500 hover:text-white rounded-full px-12 py-8 text-lg font-black uppercase tracking-widest transition-all duration-500 group">
+              Démarrer le voyage
+              <ArrowRight class="ml-3 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
-            <Button size="lg" variant="outline" class="rounded-full px-8 py-7 text-lg border-2">
-              Voir nos réalisations
-            </Button>
+            <button class="group flex items-center gap-3 text-white/50 hover:text-white font-bold uppercase tracking-widest text-sm transition-all duration-300">
+              <span class="w-12 h-[1px] bg-white/20 group-hover:w-20 group-hover:bg-indigo-500 transition-all duration-500"></span>
+              Portfolio
+            </button>
           </div>
         </div>
 
-        <!-- Hero Image/Mockup Placeholder -->
-        <div class="mt-20 relative">
-          <div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10"></div>
-          <div class="rounded-3xl border border-slate-200 shadow-2xl overflow-hidden bg-slate-900 aspect-[16/9] max-w-5xl mx-auto relative group">
-            <img src="/src/assets/hero.png" alt="Development Dashboard" class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" />
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 cursor-pointer hover:scale-110 transition-transform">
-                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <div class="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-indigo-600 border-b-[10px] border-b-transparent ml-1"></div>
-                </div>
-              </div>
-            </div>
+        <!-- Floating Dashboard Mockup -->
+        <div class="mt-32 relative max-w-6xl mx-auto perspective-3000">
+          <div class="absolute -inset-10 bg-indigo-600/20 blur-[100px] rounded-full opacity-50"></div>
+          <div class="relative rounded-[2rem] border border-white/10 shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden bg-[#0A0A0A] aspect-[16/9] animate-float rotate-x-6 rotate-y--6 group hover:rotate-x-0 hover:rotate-y-0 transition-all duration-1000">
+            <img src="/src/assets/hero.png" alt="Dev Dashboard" class="w-full h-full object-cover opacity-80" />
+            <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent"></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Partners / Trust -->
-    <section class="py-12 border-y border-slate-100 bg-slate-50/30">
-      <div class="container mx-auto px-6">
-        <p class="text-center text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">Ils nous font confiance</p>
-        <div class="flex flex-wrap justify-center items-center gap-12 lg:gap-24 grayscale opacity-50">
-          <span class="text-2xl font-bold">TECHCORP</span>
-          <span class="text-2xl font-bold">DIGITAL.CO</span>
-          <span class="text-2xl font-bold">GLOBALSOFT</span>
-          <span class="text-2xl font-bold">NEXUS</span>
-          <span class="text-2xl font-bold">STRATOS</span>
+    <!-- Infinite Scrolling Marquee -->
+    <section class="py-20 border-y border-white/5 bg-white/[0.02] relative overflow-hidden">
+      <div class="flex animate-marquee whitespace-nowrap gap-16 items-center">
+        <div v-for="i in 4" :key="i" class="flex gap-16 items-center shrink-0">
+          <div v-for="tech in techStack" :key="tech.name" class="flex items-center gap-4 group cursor-default">
+            <component :is="tech.icon" class="w-8 h-8 text-white/20 group-hover:text-indigo-500 transition-colors duration-500" />
+            <span class="text-3xl font-black uppercase tracking-tighter text-white/10 group-hover:text-white/80 transition-colors duration-500">{{ tech.name }}</span>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Services -->
-    <section id="services" class="py-24 lg:py-32">
+    <!-- Services Grid -->
+    <section id="services" class="py-32 lg:py-56 relative">
       <div class="container mx-auto px-6">
-        <div class="flex flex-col lg:flex-row justify-between items-end mb-16 gap-6">
-          <div class="max-w-2xl">
-            <h2 class="text-indigo-600 font-bold tracking-wider uppercase text-sm mb-4">Nos Services</h2>
-            <h3 class="text-4xl lg:text-5xl font-bold text-slate-900 leading-tight">
-              Des solutions complètes pour votre transformation numérique.
+        <div class="flex flex-col lg:flex-row justify-between items-start mb-24 gap-12">
+          <div class="max-w-3xl">
+            <h2 class="text-indigo-500 font-black tracking-[0.3em] uppercase text-xs mb-6">Expertise Industrielle</h2>
+            <h3 class="text-5xl lg:text-7xl font-black leading-none tracking-tighter mb-8">
+              UNE VISION <span class="italic text-white/30">HORS NORME</span> POUR VOS PROJETS.
             </h3>
           </div>
-          <p class="text-slate-500 lg:max-w-xs text-lg">
-            De l'idée à la mise en production, nous vous accompagnons à chaque étape.
-          </p>
-        </div>
-
-        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          <div v-for="service in services" :key="service.title" class="group p-8 rounded-3xl border border-slate-100 hover:border-indigo-100 hover:bg-slate-50 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-               <component :is="service.icon" class="w-7 h-7 text-indigo-600" />
-            </div>
-            <h4 class="text-xl font-bold mb-4">{{ service.title }}</h4>
-            <p class="text-slate-600 leading-relaxed mb-6">{{ service.description }}</p>
-            <a href="#" class="inline-flex items-center text-indigo-600 font-semibold group/link">
-              En savoir plus
-              <ChevronRight class="ml-1 w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="py-24 bg-slate-900 text-white rounded-[3rem] mx-4 lg:mx-10 overflow-hidden relative">
-      <div class="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px]"></div>
-      <div class="absolute bottom-0 left-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px]"></div>
-
-      <div class="container mx-auto px-6 relative z-10">
-        <div class="grid lg:grid-cols-2 gap-20 items-center">
-          <div>
-            <h2 class="text-4xl lg:text-5xl font-bold mb-8 leading-tight">Pourquoi choisir MicroDidact pour vos projets ?</h2>
-            <div class="space-y-8">
-              <div v-for="feat in features" :key="feat.title" class="flex gap-6">
-                <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-                  <component :is="feat.icon" class="w-6 h-6 text-indigo-400" />
-                </div>
-                <div>
-                  <h4 class="text-xl font-bold mb-2">{{ feat.title }}</h4>
-                  <p class="text-slate-400 leading-relaxed">{{ feat.description }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="relative">
-            <div class="absolute -inset-4 bg-indigo-500/20 blur-3xl rounded-full"></div>
-            <div class="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-8 rounded-3xl relative">
-              <div class="flex items-center gap-4 mb-8">
-                <div class="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl font-bold">M</div>
-                <div>
-                  <div class="font-bold text-lg">Logiciel MicroDidact</div>
-                  <div class="text-indigo-400 text-sm">Prêt pour le déploiement</div>
-                </div>
-              </div>
-              <div class="space-y-4">
-                <div class="h-2 bg-slate-700 rounded-full w-full">
-                  <div class="h-full bg-indigo-500 rounded-full w-[95%]"></div>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-slate-400">Progression du projet</span>
-                  <span class="text-indigo-400 font-bold">95%</span>
-                </div>
-                <div class="pt-6 grid grid-cols-2 gap-4">
-                  <div class="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                    <div class="text-xs text-slate-400 mb-1">Performance</div>
-                    <div class="text-2xl font-bold text-emerald-400">99.9</div>
-                  </div>
-                  <div class="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                    <div class="text-xs text-slate-400 mb-1">Sécurité</div>
-                    <div class="text-2xl font-bold text-indigo-400">A+</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats -->
-    <section class="py-24">
-      <div class="container mx-auto px-6">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-12">
-          <div class="text-center">
-            <div class="text-5xl font-bold text-indigo-600 mb-2">50+</div>
-            <div class="text-slate-500 font-medium">Projets Livrés</div>
-          </div>
-          <div class="text-center">
-            <div class="text-5xl font-bold text-indigo-600 mb-2">12</div>
-            <div class="text-slate-500 font-medium">Experts Dédiés</div>
-          </div>
-          <div class="text-center">
-            <div class="text-5xl font-bold text-indigo-600 mb-2">100%</div>
-            <div class="text-slate-500 font-medium">Clients Satisfaits</div>
-          </div>
-          <div class="text-center">
-            <div class="text-5xl font-bold text-indigo-600 mb-2">5+</div>
-            <div class="text-slate-500 font-medium">Années d'Expérience</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="py-24 lg:py-32">
-      <div class="container mx-auto px-6">
-        <div class="bg-indigo-600 rounded-[3rem] p-12 lg:p-24 text-center text-white relative overflow-hidden group">
-          <div class="absolute inset-0 bg-gradient-to-br from-indigo-700 to-blue-600 -z-10"></div>
-          <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
-          
-          <h2 class="text-4xl lg:text-6xl font-bold mb-8">Prêt à transformer votre vision en réalité ?</h2>
-          <p class="text-xl text-indigo-100 mb-12 max-w-2xl mx-auto">
-            Discutons de votre projet aujourd'hui. Notre équipe d'experts est prête à relever vos défis technologiques les plus ambitieux.
-          </p>
-          <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <Button size="lg" class="bg-white text-indigo-600 hover:bg-slate-50 rounded-full px-10 py-8 text-xl font-bold shadow-xl">
-              Parlons de votre projet
-            </Button>
-            <a href="mailto:contact@microdidact.com" class="text-white font-semibold flex items-center gap-2 text-lg hover:underline underline-offset-4">
-              <MessageSquare class="w-6 h-6" />
-              contact@microdidact.com
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="bg-slate-50 pt-20 pb-10 border-t border-slate-200">
-      <div class="container mx-auto px-6">
-        <div class="grid lg:grid-cols-4 gap-12 mb-16">
-          <div class="lg:col-span-1">
-            <div class="flex items-center gap-2 mb-6">
-              <div class="p-1.5 bg-indigo-600 rounded-lg">
-                <Code2 class="w-5 h-5 text-white" />
-              </div>
-              <span class="text-xl font-bold tracking-tight">MicroDidact</span>
-            </div>
-            <p class="text-slate-500 leading-relaxed mb-8">
-              Expertise en développement sur mesure pour entreprises ambitieuses. Qualité, performance et innovation au service de votre croissance.
+          <div class="lg:w-1/3 pt-4">
+            <div class="w-20 h-[2px] bg-indigo-600 mb-8"></div>
+            <p class="text-white/40 text-lg font-medium leading-relaxed">
+              Nous fusionnons design d'avant-garde et ingénierie de pointe pour créer des solutions qui ne se contentent pas de fonctionner. Elles dominent.
             </p>
           </div>
-          
-          <div>
-            <h5 class="font-bold mb-6 text-slate-900">Services</h5>
-            <ul class="space-y-4 text-slate-600">
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Développement Web</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Applications Mobiles</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Logiciels Métiers</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Audit & Conseil</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h5 class="font-bold mb-6 text-slate-900">Entreprise</h5>
-            <ul class="space-y-4 text-slate-600">
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">À propos</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Projets</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Blog</a></li>
-              <li><a href="#" class="hover:text-indigo-600 transition-colors">Contact</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h5 class="font-bold mb-6 text-slate-900">Contact</h5>
-            <ul class="space-y-4 text-slate-600">
-              <li class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <Globe class="w-4 h-4 text-indigo-600" />
-                </div>
-                <span>Paris, France</span>
-              </li>
-              <li class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <MessageSquare class="w-4 h-4 text-indigo-600" />
-                </div>
-                <span>contact@microdidact.com</span>
-              </li>
-            </ul>
-          </div>
         </div>
 
-        <div class="pt-10 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
-          <p>© 2024 MicroDidact. Tous droits réservés.</p>
-          <div class="flex gap-8">
-            <a href="#" class="hover:text-indigo-600 transition-colors">Mentions Légales</a>
-            <a href="#" class="hover:text-indigo-600 transition-colors">Confidentialité</a>
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div v-for="service in services" :key="service.title" class="group relative p-10 rounded-[2.5rem] bg-white/[0.03] border border-white/10 hover:bg-white/[0.07] hover:border-white/20 transition-all duration-700 hover:-translate-y-4">
+            <div class="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+               <ArrowRight class="w-6 h-6 text-indigo-400 rotate-[-45deg]" />
+            </div>
+            <div :class="['w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center mb-10 shadow-lg', service.color]">
+               <component :is="service.icon" class="w-8 h-8 text-white" />
+            </div>
+            <h4 class="text-2xl font-black mb-6 uppercase tracking-tight leading-none">{{ service.title }}</h4>
+            <p class="text-white/40 font-medium leading-[1.6] mb-8 group-hover:text-white/70 transition-colors duration-700">{{ service.description }}</p>
+            <div class="mt-auto h-1 w-0 bg-indigo-600 group-hover:w-full transition-all duration-700"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- High Impact Features -->
+    <section class="py-32 bg-white text-black rounded-[4rem] mx-4 lg:mx-8 overflow-hidden relative shadow-[0_50px_100px_rgba(79,70,229,0.2)]">
+      <div class="container mx-auto px-6">
+        <div class="grid lg:grid-cols-2 gap-32 items-center">
+          <div class="space-y-16">
+            <h2 class="text-6xl lg:text-8xl font-black leading-[0.9] tracking-tighter">POURQUOI NOUS ?</h2>
+            <div class="space-y-12">
+              <div v-for="feat in features" :key="feat.title" class="group flex gap-8">
+                <div class="w-14 h-14 rounded-full bg-black text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-500">
+                  <component :is="feat.icon" class="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 class="text-2xl font-black mb-4 uppercase tracking-tight">{{ feat.title }}</h4>
+                  <p class="text-black/50 font-medium leading-relaxed">{{ feat.description }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="relative group">
+            <div class="absolute -inset-10 bg-indigo-500/30 blur-[80px] rounded-full group-hover:bg-indigo-500/50 transition-colors duration-1000"></div>
+            <div class="relative bg-black rounded-[3rem] p-12 overflow-hidden shadow-2xl">
+               <div class="space-y-10">
+                 <div class="flex justify-between items-center text-white/50 text-xs font-black uppercase tracking-[0.3em]">
+                   <span>System Status</span>
+                   <span class="text-emerald-400">Online</span>
+                 </div>
+                 <div class="space-y-12 py-10">
+                   <div v-for="i in 3" :key="i" class="space-y-4">
+                     <div class="flex justify-between text-sm font-bold text-white uppercase tracking-widest">
+                       <span>Optimization {{ i }}</span>
+                       <span class="text-indigo-400">9{{ i }}%</span>
+                     </div>
+                     <div class="h-2 bg-white/5 rounded-full overflow-hidden">
+                       <div class="h-full bg-indigo-600 rounded-full animate-grow" :style="{ width: (80 + i*5) + '%' }"></div>
+                     </div>
+                   </div>
+                 </div>
+                 <Button class="w-full bg-white text-black font-black uppercase py-8 rounded-2xl hover:bg-indigo-500 hover:text-white transition-colors">Propulser mon projet</Button>
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Big CTA -->
+    <section class="py-56 relative overflow-hidden">
+      <div class="container mx-auto px-6 text-center">
+        <h2 class="text-[10vw] font-black uppercase tracking-tighter leading-[0.8] mb-20 text-white/5 pointer-events-none select-none">RELEVEZ LE DÉFI</h2>
+        <div class="relative z-10">
+          <h3 class="text-5xl lg:text-[6rem] font-black tracking-tighter mb-16 leading-none">VOTRE PROCHAIN SUCCÈS <br/> COMMENCE <span class="italic text-indigo-500 underline decoration-indigo-500/30">ICI</span>.</h3>
+          <Button size="lg" class="bg-indigo-600 hover:bg-white hover:text-black rounded-full px-16 py-10 text-xl font-black uppercase tracking-widest transition-all duration-500 shadow-[0_0_50px_rgba(79,70,229,0.5)]">
+            Contactez l'élite
+          </Button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Minimal Footer -->
+    <footer class="py-20 border-t border-white/5">
+      <div class="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-12">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+             <Code2 class="w-4 h-4 text-white" />
+          </div>
+          <span class="font-black tracking-widest uppercase text-sm">MICRODIDACT — 2024</span>
+        </div>
+        <div class="flex gap-12 text-xs font-black uppercase tracking-[0.2em] text-white/40">
+           <a href="#" class="hover:text-white transition-colors">Privacy</a>
+           <a href="#" class="hover:text-white transition-colors">Legal</a>
+           <a href="#" class="hover:text-white transition-colors">Terms</a>
+        </div>
+        <div class="text-xs font-black uppercase tracking-[0.2em] text-indigo-500">
+           Designed with precision
         </div>
       </div>
     </footer>
@@ -389,20 +300,77 @@ const features = [
 </template>
 
 <style scoped>
+@keyframes blob {
+  0% { transform: scale(1) translate(0, 0); }
+  33% { transform: scale(1.1) translate(30px, -50px); }
+  66% { transform: scale(0.9) translate(-20px, 20px); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0) rotateX(6deg) rotateY(-6deg); }
+  50% { transform: translateY(-30px) rotateX(10deg) rotateY(-3deg); }
+  100% { transform: translateY(0) rotateX(6deg) rotateY(-6deg); }
+}
+
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.8s ease-out forwards;
+@keyframes grow {
+  from { width: 0; }
 }
 
-.container {
-  max-width: 1280px;
+@keyframes reveal {
+  from { clip-path: inset(100% 0 0 0); transform: translateY(50px); }
+  to { clip-path: inset(0 0 0 0); transform: translateY(0); }
 }
+
+.animate-blob {
+  animation: blob 10s infinite ease-in-out;
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+.animate-float {
+  animation: float 8s infinite ease-in-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-grow {
+  animation: grow 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-reveal {
+  animation: reveal 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-4000 { animation-delay: 4s; }
+
+.perspective-3000 {
+  perspective: 3000px;
+}
+
+.rotate-x-6 { transform: rotateX(6deg); }
+.rotate-y--6 { transform: rotateY(-6deg); }
 
 html {
   scroll-behavior: smooth;
+}
+
+.container {
+  max-width: 1400px;
 }
 </style>

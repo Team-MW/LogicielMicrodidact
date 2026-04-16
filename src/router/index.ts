@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import Landing from '@/views/Landing.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import POS from '@/views/POS.vue'
 import Projects from '@/views/Projects.vue'
@@ -12,38 +13,51 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'landing',
+      component: Landing,
+      meta: { layout: 'public' }
+    },
+    {
+      path: '/dashboard',
       name: 'dashboard',
-      component: Dashboard
+      component: Dashboard,
+      meta: { layout: 'admin' }
     },
     {
       path: '/pos',
       name: 'pos',
-      component: POS
+      component: POS,
+      meta: { layout: 'admin' }
     },
     {
       path: '/projects',
       name: 'projects',
-      component: Projects
+      component: Projects,
+      meta: { layout: 'admin' }
     },
     {
       path: '/customers',
       name: 'customers',
-      component: Customers
+      component: Customers,
+      meta: { layout: 'admin' }
     },
     {
       path: '/customers/:id',
       name: 'customer-detail',
-      component: CustomerDetail
+      component: CustomerDetail,
+      meta: { layout: 'admin' }
     },
     {
       path: '/tracking',
       name: 'tracking',
-      component: CustomerTracking
+      component: CustomerTracking,
+      meta: { layout: 'admin' }
     },
     {
       path: '/websites',
       name: 'websites',
-      component: Websites
+      component: Websites,
+      meta: { layout: 'admin' }
     }
   ]
 })

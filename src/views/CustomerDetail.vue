@@ -7,15 +7,15 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { 
-  CreditCard, 
-  Calendar, 
-  ArrowLeft, 
-  Mail, 
-  Globe, 
-  TrendingUp, 
+  CreditCard,  
+  Calendar,  
+  ArrowLeft,  
+  Mail,  
+  Globe,  
+  TrendingUp,  
   CheckCircle2,
-  AlertCircle,
-  Plus
+  AlertCircle,  
+  Plus 
 } from 'lucide-vue-next'
 import { api } from '@/services/api'
 

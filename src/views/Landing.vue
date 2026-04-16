@@ -92,9 +92,14 @@ const features = [
           <a href="#services" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Services</a>
           <a href="#projets" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Projets</a>
           <a href="#process" class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">Notre Process</a>
-          <Button variant="default" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6">
-            Contactez-nous
-          </Button>
+          <div class="flex items-center gap-3">
+            <Button variant="ghost" class="text-indigo-600 font-semibold" @click="$router.push('/dashboard')">
+              Accès Logiciel
+            </Button>
+            <Button variant="default" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6">
+              Contactez-nous
+            </Button>
+          </div>
         </div>
 
         <!-- Mobile Menu Toggle -->
@@ -109,6 +114,9 @@ const features = [
         <a href="#services" class="text-lg font-medium py-2" @click="isMenuOpen = false">Services</a>
         <a href="#projets" class="text-lg font-medium py-2" @click="isMenuOpen = false">Projets</a>
         <a href="#process" class="text-lg font-medium py-2" @click="isMenuOpen = false">Process</a>
+        <Button variant="outline" class="w-full text-indigo-600 border-indigo-600 py-6" @click="$router.push('/dashboard'); isMenuOpen = false">
+          Accès Logiciel
+        </Button>
         <Button class="w-full bg-indigo-600 py-6">Parler d'un projet</Button>
       </div>
     </nav>

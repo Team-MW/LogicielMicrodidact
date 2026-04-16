@@ -6,7 +6,6 @@ import {
   Smartphone, 
   Globe, 
   Cpu, 
-  CheckCircle2, 
   MessageSquare,
   Sparkles,
   Zap,

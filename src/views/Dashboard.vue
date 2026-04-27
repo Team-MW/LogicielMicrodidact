@@ -3,20 +3,45 @@ import { onMounted, ref } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BarChart3, Users, DollarSign, Package } from 'lucide-vue-next'
-import { store } from '@/store'
-
-const customerCount = ref(0)
+import { supabase } from '@/lib/supabase'
 
 const stats = ref([
-  { name: 'Ventes Totales', value: '45,231.89 €', change: '+20.1%', icon: DollarSign, color: 'text-emerald-600' },
-  { name: 'Clients Actifs', value: '0', change: '+180.1%', icon: Users, color: 'text-blue-600' },
-  { name: 'Projets Actifs', value: '12', change: '+2', icon: Package, color: 'text-orange-600' },
-  { name: 'Taux de Conversion', value: '4.3%', change: '+1.2%', icon: BarChart3, color: 'text-purple-600' },
+  { name: 'Ventes Totales', value: '0.00 €', change: 'En direct', icon: DollarSign, color: 'text-emerald-600' },
+  { name: 'Clients Actifs', value: '0', change: 'En direct', icon: Users, color: 'text-blue-600' },
+  { name: 'Projets Actifs', value: '0', change: 'En direct', icon: Package, color: 'text-orange-600' },
+  { name: 'Taux de Conversion', value: '0.0%', change: 'En direct', icon: BarChart3, color: 'text-purple-600' },
 ])
 
-onMounted(() => {
-  customerCount.value = store.customers.length
-  stats.value[1].value = store.customers.length.toString()
+onMounted(async () => {
+  try {
+    // 1. Ventes Totales
+    const { data: transData } = await supabase.from('transactions').select('amount')
+    if (transData) {
+      const totalSales = transData.reduce((acc, curr) => {
+        // Remove € and spaces if string
+        let val = curr.amount
+        if (typeof val === 'string') {
+          val = val.replace(/[^0-9.-]+/g, "")
+        }
+        return acc + (parseFloat(val) || 0)
+      }, 0)
+      stats.value[0].value = `${totalSales.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+    }
+
+    // 2. Clients Actifs
+    const { count: clientCount } = await supabase.from('customers').select('*', { count: 'exact', head: true })
+    if (clientCount !== null) {
+      stats.value[1].value = clientCount.toString()
+    }
+
+    // 3. Projets Actifs
+    const { count: projectCount } = await supabase.from('projects').select('*', { count: 'exact', head: true })
+    if (projectCount !== null) {
+      stats.value[2].value = projectCount.toString()
+    }
+  } catch (err) {
+    console.error('Error fetching dashboard stats:', err)
+  }
 })
 
 

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus } from 'lucide-vue-next'
+import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus, Trash2 } from 'lucide-vue-next'
 
 interface Installation {
   id: number
@@ -18,6 +18,7 @@ interface Installation {
 }
 
 interface Note {
+  id: number
   text: string
   date: string
 }
@@ -66,7 +67,7 @@ const fetchInstNotes = async () => {
     data.forEach(note => {
       const instId = note.installation_id
       if (!mapped[instId]) mapped[instId] = []
-      mapped[instId].push({ text: note.text, date: note.date })
+      mapped[instId].push({ id: note.id, text: note.text, date: note.date })
     })
     installationNotes.value = mapped
   }
@@ -110,8 +111,17 @@ const addNote = async () => {
   
   if (data && !error) {
     if (!installationNotes.value[instId]) installationNotes.value[instId] = []
-    installationNotes.value[instId].unshift({ text: data.text, date: data.date })
+    installationNotes.value[instId].unshift({ id: data.id, text: data.text, date: data.date })
     newNoteText.value = ''
+  }
+}
+
+const deleteNote = async (noteId: number, instId: number) => {
+  if (confirm('Supprimer cette note ?')) {
+    const { error } = await supabase.from('installation_notes').delete().eq('id', noteId)
+    if (!error) {
+      installationNotes.value[instId] = installationNotes.value[instId].filter(n => n.id !== noteId)
+    }
   }
 }
 
@@ -327,12 +337,21 @@ const getStatusColor = (status: string) => {
 
             <!-- Notes List -->
             <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-              <div v-for="(note, index) in installationNotes[selectedInst.id]" :key="index" 
-                class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1"
+              <div v-for="(note, index) in installationNotes[selectedInst.id]" :key="note.id || index" 
+                class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1 relative group"
               >
                 <div class="flex justify-between items-center text-[10px]">
                   <span class="font-bold text-slate-400">Note #{{ installationNotes[selectedInst.id].length - index }}</span>
-                  <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
+                    <button 
+                      @click="deleteNote(note.id, selectedInst.id)" 
+                      class="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
+                      title="Supprimer la note"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap">{{ note.text }}</p>
               </div>

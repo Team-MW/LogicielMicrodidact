@@ -149,7 +149,7 @@ const navItems = [
               <DropdownMenuItem>Facturation</DropdownMenuItem>
               <DropdownMenuItem>Paramètres</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem @click="logout" class="text-rose-500 font-medium">Déconnexion</DropdownMenuItem>
+              <DropdownMenuItem @click="logout" @select="logout" class="text-rose-500 font-medium cursor-pointer">Déconnexion</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

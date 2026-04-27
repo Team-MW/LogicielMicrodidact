@@ -7,15 +7,23 @@ import Customers from '@/views/Customers.vue'
 import CustomerDetail from '@/views/CustomerDetail.vue'
 import CustomerTracking from '@/views/CustomerTracking.vue'
 import Websites from '@/views/Websites.vue'
+import Installers from '@/views/Installers.vue'
+import Login from '@/views/Login.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
+      path: '/login',
+      name: 'login',
+      component: Login,
+      meta: { layout: 'empty' } // Layout vide pour la page de login
+    },
+    {
       path: '/',
-      name: 'landing',
-      component: Landing,
-      meta: { layout: 'public' }
+      name: 'home',
+      component: Dashboard,
+      meta: { layout: 'admin' }
     },
     {
       path: '/dashboard',
@@ -36,6 +44,12 @@ const router = createRouter({
       meta: { layout: 'admin' }
     },
     {
+      path: '/installers',
+      name: 'installers',
+      component: Installers,
+      meta: { layout: 'admin' }
+    },
+    {
       path: '/customers',
       name: 'customers',
       component: Customers,
@@ -52,14 +66,19 @@ const router = createRouter({
       name: 'tracking',
       component: CustomerTracking,
       meta: { layout: 'admin' }
-    },
-    {
-      path: '/websites',
-      name: 'websites',
-      component: Websites,
-      meta: { layout: 'admin' }
     }
   ]
+})
+
+// Route Guard pour demander le code
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = sessionStorage.getItem('md_auth') === 'true'
+  
+  if (to.name !== 'login' && !isAuthenticated) {
+    next({ name: 'login' })
+  } else {
+    next()
+  }
 })
 
 export default router

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { 
   LayoutDashboard,
   ShoppingCart,
@@ -13,7 +13,8 @@ import {
   ChevronRight,
   LogOut,
   MessageSquareText,
-  Globe
+  Globe,
+  Truck
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -27,16 +28,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+const router = useRouter()
 const isSidebarOpen = ref(true)
 const isProfileMenuOpen = ref(false)
+
+const logout = () => {
+  sessionStorage.removeItem('md_auth')
+  router.push('/login')
+}
 
 const navItems = [
   { name: 'Tableau de Bord', icon: LayoutDashboard, path: '/' },
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
   { name: 'Projets', icon: Briefcase, path: '/projects' },
+  { name: 'Suivi Poseurs', icon: Truck, path: '/installers' },
   { name: 'Clients', icon: Users, path: '/customers' },
   { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },
-  { name: 'Sites Web', icon: Globe, path: '/websites' },
 ]
 </script>
 
@@ -48,10 +55,10 @@ const navItems = [
       :class="[isSidebarOpen ? 'w-64' : 'w-20']"
     >
       <div class="p-6 flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+        <img v-if="isSidebarOpen" src="/microdidac.png" alt="MicroDidact" class="h-16 object-contain" />
+        <div v-else class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
           <Briefcase class="h-5 w-5 text-white" />
         </div>
-        <span v-if="isSidebarOpen" class="font-bold text-xl tracking-tight truncate">MicroDidact</span>
       </div>
 
       <nav class="flex-1 px-3 space-y-1">
@@ -143,7 +150,7 @@ const navItems = [
               <DropdownMenuItem>Facturation</DropdownMenuItem>
               <DropdownMenuItem>Paramètres</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem class="text-rose-500 font-medium">Déconnexion</DropdownMenuItem>
+              <DropdownMenuItem @click="logout" class="text-rose-500 font-medium">Déconnexion</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

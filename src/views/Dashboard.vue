@@ -55,16 +55,16 @@ const recentTransactions = [
       </Card>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-      <Card class="col-span-4">
+    <div class="grid gap-4 grid-cols-1">
+      <Card class="col-span-1">
         <CardHeader>
           <CardTitle>Aperçu des Ventes</CardTitle>
           <CardDescription>Visualisation de vos revenus ce mois-ci.</CardDescription>
         </CardHeader>
         <CardContent class="pl-2">
-          <div class="h-[250px] w-full flex items-end justify-between px-4 pb-2 border-b">
+          <div class="h-[300px] w-full flex items-end justify-between px-4 pb-2 border-b">
             <div v-for="(h, i) in [40, 60, 45, 90, 100, 80, 50, 70, 85, 60, 75, 95]" :key="i" 
-              class="w-[6%] bg-primary/20 rounded-t-lg transition-all hover:bg-primary relative group"
+              class="w-[6%] bg-indigo-500/20 rounded-t-lg transition-all hover:bg-indigo-600 relative group"
               :style="{ height: h + '%' }"
             >
               <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
@@ -76,32 +76,6 @@ const recentTransactions = [
             <span>Jan</span><span>Fev</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span>
             <span>Jul</span><span>Aou</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card class="col-span-3">
-        <CardHeader>
-          <CardTitle>Transactions Récentes</CardTitle>
-          <CardDescription>Vous avez réalisé 25 ventes aujourd'hui.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-8">
-            <div v-for="tx in recentTransactions" :key="tx.id" class="flex items-center">
-              <div class="ml-4 space-y-1">
-                <p class="text-sm font-medium leading-none">{{ tx.customer }}</p>
-                <p class="text-sm text-muted-foreground">{{ tx.product }}</p>
-              </div>
-              <div class="ml-auto font-medium">
-                <div class="text-right">{{ tx.amount }}</div>
-                <Badge :variant="tx.status === 'Payé' ? 'default' : tx.status === 'En attente' ? 'secondary' : 'destructive'" class="mt-1">
-                  {{ tx.status }}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          <Button variant="ghost" class="w-full mt-6">
-            Voir tout <ArrowUpRight class="ml-2 h-4 w-4" />
-          </Button>
         </CardContent>
       </Card>
     </div>

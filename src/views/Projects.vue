@@ -108,6 +108,10 @@ const addNote = async () => {
 
 const deleteProject = async (id: number) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
+    // Supprimer les notes enfants pour respecter la clé étrangère SQL
+    await supabase.from('project_notes').delete().eq('project_id', id)
+
+    // Puis supprimer le projet
     const { error } = await supabase.from('projects').delete().eq('id', id)
     if (!error) {
       projects.value = projects.value.filter(p => p.id !== id)

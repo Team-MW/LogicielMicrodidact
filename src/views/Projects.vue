@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Calendar, Plus, FileText, CheckCircle2, Clock, ClipboardList, X, Send, Trash2 } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2 } from 'lucide-vue-next'
 
 interface Project {
   id: number

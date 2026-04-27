@@ -1,12 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Landing from '@/views/Landing.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import POS from '@/views/POS.vue'
 import Projects from '@/views/Projects.vue'
 import Customers from '@/views/Customers.vue'
 import CustomerDetail from '@/views/CustomerDetail.vue'
 import CustomerTracking from '@/views/CustomerTracking.vue'
-import Websites from '@/views/Websites.vue'
 import Installers from '@/views/Installers.vue'
 import Login from '@/views/Login.vue'
 
@@ -71,7 +69,7 @@ const router = createRouter({
 })
 
 // Route Guard pour demander le code
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const isAuthenticated = sessionStorage.getItem('md_auth') === 'true'
   
   if (to.name !== 'login' && !isAuthenticated) {

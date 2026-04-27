@@ -3,8 +3,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { Calendar, Truck, FileText, CheckCircle2, Clock, ClipboardList, X, Send, User, MapPin, Plus } from 'lucide-vue-next'
+import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus } from 'lucide-vue-next'
 
 interface Installation {
   id: number

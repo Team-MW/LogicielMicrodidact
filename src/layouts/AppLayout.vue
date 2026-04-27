@@ -13,7 +13,6 @@ import {
   ChevronRight,
   LogOut,
   MessageSquareText,
-  Globe,
   Truck
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'

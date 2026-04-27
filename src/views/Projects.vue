@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,47 +23,14 @@ interface Note {
   date: string
 }
 
-// Initial data
-const initialProjects: Project[] = [
-  { 
-    id: 1, 
-    name: 'Développement Logiciel Microdidact', 
-    client: 'Interne (MWCREA)', 
-    status: 'En cours', 
-    progress: 75, 
-    deadline: '30 Juin', 
-    priority: 'Haute',
-    team: ['AM', 'EL']
-  },
-  { 
-    id: 2, 
-    name: 'Création Site Web StayZen', 
-    client: 'StayZen Conciergerie', 
-    status: 'En cours', 
-    progress: 90, 
-    deadline: '15 Mai', 
-    priority: 'Critique',
-    team: ['EL', 'JD']
-  },
-  { 
-    id: 4, 
-    name: 'Application Mobile Client X', 
-    client: 'Client Privé', 
-    status: 'Planifié', 
-    progress: 15, 
-    deadline: '15 Septembre', 
-    priority: 'Moyenne',
-    team: ['MC']
-  },
-]
 
-const projects = ref<Project[]>(initialProjects)
+
+const projects = ref<Project[]>([])
 const projectNotes = ref<Record<number, Note[]>>({})
 const activeFilter = ref('Tous')
 const selectedProject = ref<Project | null>(null)
 const newNoteText = ref('')
 
-// Add Project State
 const showAddModal = ref(false)
 const newProject = ref({
   name: '',
@@ -71,41 +39,29 @@ const newProject = ref({
   priority: 'Moyenne'
 })
 
-// Load data from localStorage
+const fetchProjects = async () => {
+  const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
+  if (data && !error) {
+    projects.value = data
+  }
+}
+
+const fetchNotes = async () => {
+  const { data, error } = await supabase.from('project_notes').select('*').order('created_at', { ascending: false })
+  if (data && !error) {
+    const mapped: Record<number, Note[]> = {}
+    data.forEach(note => {
+      if (!mapped[note.project_id]) mapped[note.project_id] = []
+      mapped[note.project_id].push({ text: note.text, date: note.date })
+    })
+    projectNotes.value = mapped
+  }
+}
+
 onMounted(() => {
-  const savedProjects = localStorage.getItem('md_projects')
-  if (savedProjects) {
-    projects.value = JSON.parse(savedProjects)
-  }
-  
-  const savedNotes = localStorage.getItem('md_project_multi_notes')
-  if (savedNotes) {
-    projectNotes.value = JSON.parse(savedNotes)
-  } else {
-    // Migration from old single note structure if exists
-    const oldNotes = localStorage.getItem('md_project_notes')
-    if (oldNotes) {
-      const parsedOld = JSON.parse(oldNotes)
-      const migrated: Record<number, Note[]> = {}
-      for (const [id, text] of Object.entries(parsedOld)) {
-        if (text) {
-          migrated[Number(id)] = [{ text: String(text), date: 'Initial' }]
-        }
-      }
-      projectNotes.value = migrated
-      localStorage.setItem('md_project_multi_notes', JSON.stringify(migrated))
-    }
-  }
+  fetchProjects()
+  fetchNotes()
 })
-
-// Save data to localStorage
-watch(projects, (newProjects) => {
-  localStorage.setItem('md_projects', JSON.stringify(newProjects))
-}, { deep: true })
-
-watch(projectNotes, (newNotes) => {
-  localStorage.setItem('md_project_multi_notes', JSON.stringify(newNotes))
-}, { deep: true })
 
 // Filtered Projects
 const filteredProjects = computed(() => {
@@ -116,67 +72,69 @@ const filteredProjects = computed(() => {
   return projects.value
 })
 
-const updateStatus = (projectId: number, newStatus: string) => {
-  const project = projects.value.find(p => p.id === projectId)
-  if (project) {
-    project.status = newStatus
-    if (newStatus === 'Terminé') project.progress = 100
-    if (newStatus === 'Planifié' && project.progress === 100) project.progress = 0
+const updateStatus = async (projectId: number, newStatus: string) => {
+  let progress = 0
+  if (newStatus === 'Terminé') progress = 100
+  if (newStatus === 'En cours') progress = 50
+  
+  const { error } = await supabase.from('projects').update({ status: newStatus, progress }).eq('id', projectId)
+  if (!error) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (project) {
+      project.status = newStatus
+      project.progress = progress
+    }
   }
 }
 
-const addNote = () => {
+const addNote = async () => {
   if (!selectedProject.value || !newNoteText.value.trim()) return
-  
   const projectId = selectedProject.value.id
-  if (!projectNotes.value[projectId]) {
-    projectNotes.value[projectId] = []
-  }
-  
   const now = new Date()
   const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
   
-  projectNotes.value[projectId].unshift({
+  const { data, error } = await supabase.from('project_notes').insert({
+    project_id: projectId,
     text: newNoteText.value.trim(),
     date: formattedDate
-  })
+  }).select().single()
   
-  newNoteText.value = ''
-}
-
-const deleteProject = (id: number) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
-    projects.value = projects.value.filter(p => p.id !== id)
-    selectedProject.value = null
+  if (data && !error) {
+    if (!projectNotes.value[projectId]) projectNotes.value[projectId] = []
+    projectNotes.value[projectId].unshift({ text: data.text, date: data.date })
+    newNoteText.value = ''
   }
 }
 
-const addProject = () => {
+const deleteProject = async (id: number) => {
+  if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
+    const { error } = await supabase.from('projects').delete().eq('id', id)
+    if (!error) {
+      projects.value = projects.value.filter(p => p.id !== id)
+      selectedProject.value = null
+    }
+  }
+}
+
+const addProject = async () => {
   if (!newProject.value.name.trim() || !newProject.value.client.trim()) return
   
-  const newId = projects.value.length > 0 ? Math.max(...projects.value.map(p => p.id)) + 1 : 1
-  
-  projects.value.push({
-    id: newId,
+  const { data, error } = await supabase.from('projects').insert({
     name: newProject.value.name.trim(),
     client: newProject.value.client.trim(),
     status: 'Planifié',
     progress: 0,
     deadline: newProject.value.deadline || 'Non définie',
-    priority: newProject.value.priority,
-    team: ['AM']
-  })
+    priority: newProject.value.priority
+  }).select().single()
   
-  // Reset form
-  newProject.value = {
-    name: '',
-    client: '',
-    deadline: '',
-    priority: 'Moyenne'
+  if (data && !error) {
+    projects.value.unshift(data)
+    newProject.value = { name: '', client: '', deadline: '', priority: 'Moyenne' }
+    showAddModal.value = false
   }
-  
-  showAddModal.value = false
 }
+
 
 const getStatusColor = (status: string) => {
   if (status === 'Terminé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'

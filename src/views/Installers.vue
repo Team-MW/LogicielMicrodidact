@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,47 +22,14 @@ interface Note {
   date: string
 }
 
-// Initial data
-const initialInstallations: Installation[] = [
-  { 
-    id: 1, 
-    client: 'Boulangerie Louise', 
-    address: '12 Rue de la Paix, Paris',
-    signType: 'Enseigne Lumineuse LED', 
-    status: 'En cours', 
-    poseur: 'Karim',
-    deadline: '28 Avril', 
-    priority: 'Haute'
-  },
-  { 
-    id: 2, 
-    client: 'Garage AutoPro', 
-    address: '45 Av. de la République, Lyon',
-    signType: 'Totem Extérieur', 
-    status: 'À planifier', 
-    poseur: 'Thomas',
-    deadline: '05 Mai', 
-    priority: 'Moyenne'
-  },
-  { 
-    id: 3, 
-    client: 'Pharmacie Centrale', 
-    address: '5 Place du Marché, Lille',
-    signType: 'Croix LED + Habillage', 
-    status: 'Terminé', 
-    poseur: 'Sofiane',
-    deadline: '20 Avril', 
-    priority: 'Haute'
-  },
-]
 
-const installations = ref<Installation[]>(initialInstallations)
+
+const installations = ref<Installation[]>([])
 const installationNotes = ref<Record<number, Note[]>>({})
 const activeFilter = ref('Tous')
 const selectedInst = ref<Installation | null>(null)
 const newNoteText = ref('')
 
-// Add Installation State
 const showAddModal = ref(false)
 const newInst = ref({
   client: '',
@@ -74,27 +42,40 @@ const newInst = ref({
 
 const poseurs = ['Karim', 'Thomas', 'Sofiane', 'Équipe A', 'Équipe B']
 
-// Load data from localStorage
+const fetchInstallations = async () => {
+  const { data, error } = await supabase.from('installations').select('*').order('created_at', { ascending: false })
+  if (data && !error) {
+    const mapped = data.map(i => ({
+      id: i.id,
+      client: i.client,
+      address: i.address,
+      signType: i.sign_type || i.signType || 'Enseigne',
+      status: i.status,
+      poseur: i.poseur,
+      deadline: i.deadline,
+      priority: i.priority
+    }))
+    installations.value = mapped
+  }
+}
+
+const fetchInstNotes = async () => {
+  const { data, error } = await supabase.from('installation_notes').select('*').order('created_at', { ascending: false })
+  if (data && !error) {
+    const mapped: Record<number, Note[]> = {}
+    data.forEach(note => {
+      const instId = note.installation_id
+      if (!mapped[instId]) mapped[instId] = []
+      mapped[instId].push({ text: note.text, date: note.date })
+    })
+    installationNotes.value = mapped
+  }
+}
+
 onMounted(() => {
-  const savedInst = localStorage.getItem('md_installations')
-  if (savedInst) {
-    installations.value = JSON.parse(savedInst)
-  }
-  
-  const savedNotes = localStorage.getItem('md_inst_notes')
-  if (savedNotes) {
-    installationNotes.value = JSON.parse(savedNotes)
-  }
+  fetchInstallations()
+  fetchInstNotes()
 })
-
-// Save data to localStorage
-watch(installations, (newInsts) => {
-  localStorage.setItem('md_installations', JSON.stringify(newInsts))
-}, { deep: true })
-
-watch(installationNotes, (newNotes) => {
-  localStorage.setItem('md_inst_notes', JSON.stringify(newNotes))
-}, { deep: true })
 
 // Filtered Installations
 const filteredInstallations = computed(() => {
@@ -105,60 +86,74 @@ const filteredInstallations = computed(() => {
   return installations.value
 })
 
-const updateStatus = (id: number, newStatus: string) => {
-  const inst = installations.value.find(i => i.id === id)
-  if (inst) {
-    inst.status = newStatus
+const updateStatus = async (id: number, newStatus: string) => {
+  const { error } = await supabase.from('installations').update({ status: newStatus }).eq('id', id)
+  if (!error) {
+    const inst = installations.value.find(i => i.id === id)
+    if (inst) {
+      inst.status = newStatus
+    }
   }
 }
 
-const addNote = () => {
+const addNote = async () => {
   if (!selectedInst.value || !newNoteText.value.trim()) return
-  
   const instId = selectedInst.value.id
-  if (!installationNotes.value[instId]) {
-    installationNotes.value[instId] = []
-  }
-  
   const now = new Date()
   const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
   
-  installationNotes.value[instId].unshift({
+  const { data, error } = await supabase.from('installation_notes').insert({
+    installation_id: instId,
     text: newNoteText.value.trim(),
     date: formattedDate
-  })
+  }).select().single()
   
-  newNoteText.value = ''
+  if (data && !error) {
+    if (!installationNotes.value[instId]) installationNotes.value[instId] = []
+    installationNotes.value[instId].unshift({ text: data.text, date: data.date })
+    newNoteText.value = ''
+  }
 }
 
-const addInstallation = () => {
+const addInstallation = async () => {
   if (!newInst.value.client.trim() || !newInst.value.signType.trim()) return
   
-  const newId = installations.value.length > 0 ? Math.max(...installations.value.map(i => i.id)) + 1 : 1
-  
-  installations.value.push({
-    id: newId,
+  const { data, error } = await supabase.from('installations').insert({
     client: newInst.value.client.trim(),
     address: newInst.value.address.trim() || 'Non spécifiée',
-    signType: newInst.value.signType.trim(),
+    sign_type: newInst.value.signType.trim(),
     status: 'À planifier',
     poseur: newInst.value.poseur,
     deadline: newInst.value.deadline || 'Non définie',
     priority: newInst.value.priority
-  })
+  }).select().single()
   
-  // Reset form
-  newInst.value = {
-    client: '',
-    address: '',
-    signType: '',
-    poseur: 'Karim',
-    deadline: '',
-    priority: 'Moyenne'
+  if (data && !error) {
+    const mapped = {
+      id: data.id,
+      client: data.client,
+      address: data.address,
+      signType: data.sign_type || data.signType,
+      status: data.status,
+      poseur: data.poseur,
+      deadline: data.deadline,
+      priority: data.priority
+    }
+    installations.value.unshift(mapped)
+    
+    newInst.value = {
+      client: '',
+      address: '',
+      signType: '',
+      poseur: 'Karim',
+      deadline: '',
+      priority: 'Moyenne'
+    }
+    showAddModal.value = false
   }
-  
-  showAddModal.value = false
 }
+
+
 
 const getStatusColor = (status: string) => {
   if (status === 'Terminé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'

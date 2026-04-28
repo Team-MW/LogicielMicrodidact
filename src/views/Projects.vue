@@ -60,6 +60,22 @@ const fetchNotes = async () => {
   }
 }
 
+const parseTextWithLinks = (text: string) => {
+  if (!text) return ''
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g
+  return escaped.replace(urlRegex, (url) => {
+    const href = url.startsWith('www') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all">${url}</a>`
+  })
+}
+
 onMounted(() => {
   fetchProjects()
   fetchNotes()
@@ -364,7 +380,7 @@ const getStatusColor = (status: string) => {
                     </button>
                   </div>
                 </div>
-                <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap">{{ note.text }}</p>
+                <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap" v-html="parseTextWithLinks(note.text)"></p>
               </div>
               
               <div v-if="!projectNotes[selectedProject.id]?.length" class="text-center py-6 text-slate-400 text-sm italic">

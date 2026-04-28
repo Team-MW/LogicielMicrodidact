@@ -237,7 +237,7 @@ const getStatusColor = (status: string) => {
             </span>
           </div>
           <CardTitle class="text-base text-slate-900 font-bold tracking-tight truncate">{{ project.name }}</CardTitle>
-          <CardDescription class="text-slate-400 text-xs truncate">Client: {{ project.client }}</CardDescription>
+          <CardDescription class="text-slate-400 text-xs truncate">Client: <span v-html="parseTextWithLinks(project.client)"></span></CardDescription>
         </CardHeader>
         
         <CardContent class="p-4 pt-2 flex-1 flex flex-col justify-between gap-4" @click.stop>
@@ -301,7 +301,7 @@ const getStatusColor = (status: string) => {
               {{ selectedProject.status === 'Planifié' ? 'Nouveau' : selectedProject.status }}
             </Badge>
             <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject.name }}</h3>
-            <p class="text-slate-500 text-sm font-medium">Client: {{ selectedProject.client }}</p>
+            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
           </div>
           <div class="flex items-center gap-1">
             <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">

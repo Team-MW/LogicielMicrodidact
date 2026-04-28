@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2 } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -31,6 +31,7 @@ const projectNotes = ref<Record<number, Note[]>>({})
 const activeFilter = ref('Tous')
 const selectedProject = ref<Project | null>(null)
 const newNoteText = ref('')
+const searchQuery = ref('')
 
 const showAddModal = ref(false)
 const newProject = ref({
@@ -66,11 +67,21 @@ onMounted(() => {
 
 // Filtered Projects
 const filteredProjects = computed(() => {
-  if (activeFilter.value === 'Tous') return projects.value
-  if (activeFilter.value === 'En cours') return projects.value.filter(p => p.status === 'En cours')
-  if (activeFilter.value === 'Terminés') return projects.value.filter(p => p.status === 'Terminé')
-  if (activeFilter.value === 'Nouveaux') return projects.value.filter(p => p.status === 'Planifié')
-  return projects.value
+  let base = projects.value
+  
+  if (activeFilter.value === 'En cours') base = base.filter(p => p.status === 'En cours')
+  if (activeFilter.value === 'Terminés') base = base.filter(p => p.status === 'Terminé')
+  if (activeFilter.value === 'Nouveaux') base = base.filter(p => p.status === 'Planifié')
+  
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim()
+    base = base.filter(p => 
+      p.name.toLowerCase().includes(query) || 
+      p.client.toLowerCase().includes(query)
+    )
+  }
+  
+  return base
 })
 
 const updateStatus = async (projectId: number, newStatus: string) => {
@@ -169,21 +180,29 @@ const getStatusColor = (status: string) => {
       </Button>
     </div>
 
-    <!-- Filters -->
-    <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit">
-      <button 
-        v-for="filter in ['Tous', 'En cours', 'Terminés', 'Nouveaux']" 
-        :key="filter"
-        @click="activeFilter = filter"
-        class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
-        :class="[
-          activeFilter === filter 
-            ? 'bg-white text-slate-900 shadow-sm' 
-            : 'text-slate-500 hover:text-slate-900'
-        ]"
-      >
-        {{ filter }}
-      </button>
+    <!-- Search and Filters -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
+        <button 
+          v-for="filter in ['Tous', 'En cours', 'Terminés', 'Nouveaux']" 
+          :key="filter"
+          @click="activeFilter = filter"
+          class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
+          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+        >
+          {{ filter }}
+        </button>
+      </div>
+
+      <div class="relative w-full md:max-w-xs flex-1">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <input 
+          v-model="searchQuery"
+          type="text"
+          placeholder="Rechercher un projet, client..."
+          class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400 shadow-xs"
+        />
+      </div>
     </div>
 
     <!-- Compact Project Grid -->

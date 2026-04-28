@@ -44,6 +44,8 @@ const verifyCode = () => {
           <Input 
             v-model="code"
             type="password"
+            inputmode="numeric"
+            pattern="[0-9]*"
             placeholder="Entrez le code"
             maxlength="4"
             @keyup.enter="verifyCode"

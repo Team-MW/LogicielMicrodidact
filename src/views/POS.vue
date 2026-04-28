@@ -1,222 +1,246 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Minus, Search, ShoppingCart, CreditCard, Banknote, CheckCircle2, XCircle } from 'lucide-vue-next'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { api } from '@/services/api'
+import { XCircle, CreditCard, ExternalLink, Link2, AlertCircle, RefreshCw } from 'lucide-vue-next'
 
-const products = [
-  { id: 1, name: 'Logiciel de Gestion', price: 299.99, category: 'Logiciel' },
-  { id: 2, name: 'Maintenance Mensuelle', price: 49.99, category: 'Service' },
-  { id: 3, name: 'Formation Utilisateur', price: 150.00, category: 'Service' },
-  { id: 4, name: 'Licence Supplémentaire', price: 89.00, category: 'Logiciel' },
-  { id: 5, name: 'Support Premium', price: 199.00, category: 'Service' },
-  { id: 6, name: 'Installation sur Site', price: 250.00, category: 'Service' },
-]
-
-const cart = ref<any[]>([])
-const searchQuery = ref('')
-const payments = ref<any[]>([])
+const transactions = ref<any[]>([])
 const customers = ref<any[]>([])
+const activeTab = ref('refused') // 'refused' | 'stripe'
 
-onMounted(async () => {
-  payments.value = await api.getPayments ? await api.getPayments() : []
-  customers.value = await api.getCustomers()
+// Formulaire Lien Stripe
+const stripeAmount = ref('')
+const stripeClient = ref('')
+const stripeDesc = ref('')
+const generatedLink = ref('')
+const isLoading = ref(false)
+
+const fetchTransactions = async () => {
+  const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false })
+  if (data && !error) {
+    transactions.value = data
+  }
+}
+
+const fetchCustomers = async () => {
+  const { data, error } = await supabase.from('customers').select('*').order('name')
+  if (data && !error) {
+    customers.value = data
+  }
+}
+
+onMounted(() => {
+  fetchTransactions()
+  fetchCustomers()
 })
 
-const getCustomerName = (id: number) => {
-  const customer = customers.value.find(c => c.id === id)
-  return customer ? customer.name : 'Inconnu'
+const getCustomerName = (customerId: any) => {
+  if (!customerId) return 'Client Inconnu'
+  const customer = customers.value.find(c => c.id === customerId)
+  return customer ? customer.name : 'Client #' + customerId
 }
 
-const filteredProducts = computed(() => {
-  return products.filter(p => p.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
+const refusedTransactions = computed(() => {
+  return transactions.value.filter(t => t.status === 'Refusé')
 })
 
-const addToCart = (product: any) => {
-  const item = cart.value.find(i => i.id === product.id)
-  if (item) {
-    item.quantity++
-  } else {
-    cart.value.push({ ...product, quantity: 1 })
-  }
+const createStripeLink = () => {
+  if (!stripeAmount.value) return
+  isLoading.value = true
+  
+  // Préparation Stripe (simulation)
+  setTimeout(async () => {
+    const fakeId = Math.random().toString(36).substring(2, 11).toUpperCase()
+    generatedLink.value = `https://checkout.stripe.com/pay/cs_live_${fakeId}`
+    
+    // Loguer la transaction "En attente" dans Supabase (Optionnel)
+    await supabase.from('transactions').insert({
+      amount: parseFloat(stripeAmount.value),
+      payment_method: 'Stripe Link',
+      status: 'En attente'
+    })
+    
+    isLoading.value = false
+    fetchTransactions()
+  }, 1200)
 }
 
-const removeFromCart = (index: number) => {
-  cart.value.splice(index, 1)
-}
-
-const updateQuantity = (index: number, delta: number) => {
-  const item = cart.value[index]
-  item.quantity += delta
-  if (item.quantity <= 0) {
-    removeFromCart(index)
-  }
-}
-
-const total = computed(() => {
-  return cart.value.reduce((acc, item) => acc + (item.price * item.quantity), 0).toFixed(2)
-})
-
-const handleCheckout = async (method: string) => {
-  if (cart.value.length === 0) return
-  
-  // Simulate payment processing
-  // Randomly fail for demo purposes if it's over 500e
-  const success = parseFloat(total.value) > 500 ? Math.random() > 0.3 : true
-  
-  const newPayment = {
-    customerId: 1, // Default for POS
-    amount: `${total.value} €`,
-    status: success ? 'Payé' : 'Refusé',
-    date: new Date().toISOString().split('T')[0],
-    method: method
-  }
-  
-  // Save to api
-  // In a real app we'd have a createPayment method
-  // For now let's just push to our local state
-  payments.value.unshift({ id: Date.now(), ...newPayment })
-  
-  if (success) {
-    alert('Paiement validé avec succès !')
-    cart.value = []
-  } else {
-    alert('Paiement refusé par la banque.')
-  }
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 </script>
 
 <template>
-  <div class="flex-1 space-y-8 p-8 pt-6">
-    <div class="flex items-center justify-between">
-      <h2 class="text-3xl font-bold tracking-tight">Espace Vente & Encaissement</h2>
+  <div class="flex-1 space-y-6 p-6 bg-slate-50/30 min-h-screen relative">
+    
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Espace Encaissements</h2>
+        <p class="text-muted-foreground text-xs">Suivi des transactions échouées et création de liens de paiement.</p>
+      </div>
+      
+      <!-- Tabs Switcher -->
+      <div class="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+        <button 
+          @click="activeTab = 'refused'"
+          class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+          :class="[activeTab === 'refused' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+        >
+          <AlertCircle class="h-3.5 w-3.5" /> Paiements Refusés
+        </button>
+        <button 
+          @click="activeTab = 'stripe'"
+          class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+          :class="[activeTab === 'stripe' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+        >
+          <Link2 class="h-3.5 w-3.5" /> Liens Stripe
+        </button>
+      </div>
     </div>
 
-    <!-- Top Section: POS Interface -->
-    <div class="flex gap-6 h-[500px]">
-      <!-- Products List -->
-      <Card class="flex-1 flex flex-col overflow-hidden">
-        <CardHeader class="border-b pb-4">
-          <div class="flex items-center justify-between">
-            <CardTitle>Catalogue Produits</CardTitle>
-            <div class="relative w-64">
-              <Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input v-model="searchQuery" placeholder="Rechercher..." class="pl-8" />
-            </div>
+    <!-- 1. SECTION: PAIEMENTS REFUSES -->
+    <div v-if="activeTab === 'refused'" class="space-y-4">
+      <Card class="border-slate-100 shadow-xs rounded-2xl overflow-hidden">
+        <CardHeader class="p-6 border-b border-slate-100 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle class="text-base font-bold text-slate-900">Transactions Échouées</CardTitle>
+            <CardDescription class="text-xs">Consultez la liste des rejets bancaires.</CardDescription>
           </div>
+          <Button variant="ghost" size="icon" @click="fetchTransactions" class="rounded-xl">
+            <RefreshCw class="h-4 w-4 text-slate-500" />
+          </Button>
         </CardHeader>
-        <CardContent class="flex-1 overflow-auto p-6">
-          <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-for="product in filteredProducts" :key="product.id" 
-              class="group p-4 rounded-xl border-2 border-slate-100 hover:border-primary hover:shadow-md transition-all cursor-pointer active:scale-95 bg-white"
-              @click="addToCart(product)">
-              <Badge variant="secondary" class="mb-2">{{ product.category }}</Badge>
-              <h4 class="font-bold text-slate-800">{{ product.name }}</h4>
-              <p class="text-xl font-black text-primary mt-2">{{ product.price.toFixed(2) }} €</p>
-            </div>
+        <CardContent class="p-0">
+          <Table>
+            <TableHeader class="bg-slate-50">
+              <TableRow class="hover:bg-transparent border-slate-100">
+                <TableHead class="text-slate-600 font-bold text-xs h-11">Date</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11">Client</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11">Montant</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11">Mode</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11 text-right">Statut</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="tx in refusedTransactions" :key="tx.id" class="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <TableCell class="text-xs font-medium text-slate-500">{{ formatDate(tx.created_at) }}</TableCell>
+                <TableCell class="font-bold text-slate-800 text-sm">{{ getCustomerName(tx.customer_id) }}</TableCell>
+                <TableCell class="font-black text-slate-900 text-sm">{{ tx.amount }} €</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" class="text-[9px] uppercase font-bold px-2 py-0.5">{{ tx.payment_method || 'Inconnu' }}</Badge>
+                </TableCell>
+                <TableCell class="text-right">
+                  <Badge class="bg-rose-50 text-rose-600 border border-rose-200/50 text-[10px] font-bold rounded-lg px-2.5 py-1">
+                    <XCircle class="h-3.5 w-3.5 mr-1" /> Refusé
+                  </Badge>
+                </TableCell>
+              </TableRow>
+              <TableRow v-if="refusedTransactions.length === 0">
+                <TableCell colspan="5" class="h-32 text-center text-slate-400 text-sm italic">
+                  Aucun paiement refusé dans l'historique.
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+
+    <!-- 2. SECTION: LIENS STRIPE -->
+    <div v-if="activeTab === 'stripe'" class="grid gap-6 md:grid-cols-3">
+      <!-- Formulaire de génération -->
+      <Card class="border-slate-100 shadow-xs rounded-2xl md:col-span-1">
+        <CardHeader class="p-6 border-b border-slate-100">
+          <CardTitle class="text-base font-bold text-slate-900">Créer un Lien</CardTitle>
+          <CardDescription class="text-xs">Générez un portail Stripe sécurisé.</CardDescription>
+        </CardHeader>
+        <CardContent class="p-6 space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Montant (€)</label>
+            <Input 
+              v-model="stripeAmount" 
+              type="number" 
+              placeholder="Ex: 150.00" 
+              class="rounded-xl border-slate-200 focus-visible:ring-indigo-100" 
+            />
           </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Client (Optionnel)</label>
+            <Input 
+              v-model="stripeClient" 
+              type="text" 
+              placeholder="Ex: StayZen Conciergerie" 
+              class="rounded-xl border-slate-200 focus-visible:ring-indigo-100" 
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Description</label>
+            <Input 
+              v-model="stripeDesc" 
+              type="text" 
+              placeholder="Ex: Facture #0144" 
+              class="rounded-xl border-slate-200 focus-visible:ring-indigo-100" 
+            />
+          </div>
+
+          <Button 
+            @click="createStripeLink" 
+            :disabled="isLoading || !stripeAmount"
+            class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl h-11"
+          >
+            {{ isLoading ? 'Génération...' : 'Créer le lien Stripe' }}
+          </Button>
         </CardContent>
       </Card>
 
-      <!-- Cart Sidebar -->
-      <Card class="w-[400px] flex flex-col border-2 border-primary/10 shadow-lg">
-        <CardHeader class="bg-primary/5 border-b">
-          <CardTitle class="flex items-center gap-2 text-primary">
-            <ShoppingCart class="h-5 w-5" /> Panier Actuel
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="flex-1 overflow-auto p-4 space-y-3">
-          <div v-if="cart.length === 0" class="h-full flex flex-col items-center justify-center text-muted-foreground italic py-12">
-            <ShoppingCart class="h-10 w-10 opacity-10 mb-2" />
-            <p>Panier vide</p>
+      <!-- Lien Généré -->
+      <Card class="border-slate-100 shadow-xs rounded-2xl md:col-span-2 flex flex-col justify-center items-center p-8 bg-slate-50/50">
+        <div v-if="generatedLink" class="w-full max-w-md bg-white p-6 rounded-2xl border border-indigo-50 shadow-md space-y-4 text-center animate-in fade-in zoom-in-95 duration-300">
+          <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto border border-indigo-100">
+            <CreditCard class="h-6 w-6" />
           </div>
-          <div v-for="(item, index) in cart" :key="item.id" class="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100">
-            <div class="space-y-1">
-              <p class="font-bold text-sm">{{ item.name }}</p>
-              <p class="text-xs text-muted-foreground font-medium">{{ item.price.toFixed(2) }} €</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="flex items-center bg-slate-100 rounded-lg p-1">
-                <Button variant="ghost" size="icon" class="h-6 w-6" @click="updateQuantity(index, -1)">
-                  <Minus class="h-3 w-3" />
-                </Button>
-                <span class="w-6 text-center text-xs font-bold">{{ item.quantity }}</span>
-                <Button variant="ghost" size="icon" class="h-6 w-6" @click="updateQuantity(index, 1)">
-                  <Plus class="h-3 w-3" />
-                </Button>
-              </div>
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-rose-500 hover:bg-rose-50" @click="removeFromCart(index)">
-                <Trash2 class="h-4 w-4" />
+          <h3 class="text-lg font-bold text-slate-900">Lien Prêt à l'Envoi</h3>
+          <p class="text-xs text-slate-500 font-medium">Partagez cette adresse de paiement Stripe avec le client.</p>
+          
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-mono text-indigo-600 break-all select-all select-none">
+            {{ generatedLink }}
+          </div>
+
+          <div class="flex gap-2">
+            <Button variant="outline" class="flex-1 rounded-xl font-bold" @click="generatedLink = ''">
+              Nouveau
+            </Button>
+            <a :href="generatedLink" target="_blank" class="flex-1">
+              <Button class="w-full bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold flex items-center justify-center gap-1.5">
+                Ouvrir <ExternalLink class="h-4 w-4" />
               </Button>
-            </div>
+            </a>
           </div>
-        </CardContent>
-        <CardFooter class="flex-col gap-4 border-t pt-6 bg-slate-50/80 p-6">
-          <div class="w-full flex justify-between items-center px-1">
-            <span class="text-slate-500 font-bold uppercase text-xs tracking-wider">Total à payer</span>
-            <span class="text-2xl font-black text-primary">{{ total }} €</span>
+        </div>
+
+        <div v-else class="text-center text-slate-400 space-y-2">
+          <div class="w-12 h-12 bg-slate-100/80 rounded-full flex items-center justify-center mx-auto text-slate-400">
+            <Link2 class="h-5 w-5" />
           </div>
-          <div class="grid grid-cols-2 gap-3 w-full">
-            <Button variant="outline" class="h-12 border-2" @click="handleCheckout('Espèces')">
-              <Banknote class="h-4 w-4 mr-2" /> Espèces
-            </Button>
-            <Button class="h-12 shadow-md shadow-primary/20" @click="handleCheckout('Carte Bancaire')">
-              <CreditCard class="h-4 w-4 mr-2" /> Carte
-            </Button>
-          </div>
-        </CardFooter>
+          <p class="text-sm font-bold">En attente de création...</p>
+          <p class="text-xs max-w-xs text-slate-400">Remplissez les informations de prix pour générer le lien sécurisé.</p>
+        </div>
       </Card>
     </div>
 
-    <!-- Bottom Section: Simple History Table -->
-    <Card>
-      <CardHeader>
-        <CardTitle>Dernières Transactions</CardTitle>
-        <CardDescription>Historique des paiements encaissés ou refusés.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Montant</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Mode</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="payment in payments" :key="payment.id" class="hover:bg-slate-50/50 transition-colors">
-              <TableCell class="text-xs text-muted-foreground">{{ payment.date }}</TableCell>
-              <TableCell class="font-semibold">{{ getCustomerName(payment.customerId) }}</TableCell>
-              <TableCell class="font-bold text-lg">{{ payment.amount }}</TableCell>
-              <TableCell>
-                <Badge 
-                  :variant="payment.status === 'Payé' ? 'default' : 'destructive'"
-                  class="rounded-full px-3"
-                  :class="payment.status === 'Payé' ? 'bg-emerald-500' : ''"
-                >
-                  <CheckCircle2 v-if="payment.status === 'Payé'" class="h-3 w-3 mr-1" />
-                  <XCircle v-else class="h-3 w-3 mr-1" />
-                  {{ payment.status === 'Payé' ? 'Validé' : 'Refusé' }}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <span class="text-xs uppercase font-medium text-slate-400 tracking-tighter">{{ payment.method }}</span>
-              </TableCell>
-            </TableRow>
-            <TableRow v-if="payments.length === 0">
-              <TableCell colspan="5" class="h-24 text-center text-muted-foreground">
-                Aucune transaction enregistrée.
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
   </div>
 </template>

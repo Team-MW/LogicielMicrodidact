@@ -87,6 +87,7 @@ const filteredProjects = computed(() => {
   
   if (activeFilter.value === 'En cours') base = base.filter(p => p.status === 'En cours')
   if (activeFilter.value === 'Terminés') base = base.filter(p => p.status === 'Terminé')
+  if (activeFilter.value === 'Traité') base = base.filter(p => p.status === 'Traité')
   if (activeFilter.value === 'Nouveaux') base = base.filter(p => p.status === 'Planifié')
   
   if (searchQuery.value.trim()) {
@@ -102,7 +103,7 @@ const filteredProjects = computed(() => {
 
 const updateStatus = async (projectId: number, newStatus: string) => {
   let progress = 0
-  if (newStatus === 'Terminé') progress = 100
+  if (newStatus === 'Terminé' || newStatus === 'Traité') progress = 100
   if (newStatus === 'En cours') progress = 50
   
   const { error } = await supabase.from('projects').update({ status: newStatus, progress }).eq('id', projectId)
@@ -178,6 +179,7 @@ const addProject = async () => {
 
 
 const getStatusColor = (status: string) => {
+  if (status === 'Traité') return 'bg-blue-50 text-blue-700 border-blue-200'
   if (status === 'Terminé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
   if (status === 'En cours') return 'bg-indigo-50 text-indigo-700 border-indigo-200'
   return 'bg-amber-50 text-amber-700 border-amber-200'
@@ -200,7 +202,7 @@ const getStatusColor = (status: string) => {
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
         <button 
-          v-for="filter in ['Tous', 'En cours', 'Terminés', 'Nouveaux']" 
+          v-for="filter in ['Tous', 'En cours', 'Terminés', 'Traité', 'Nouveaux']" 
           :key="filter"
           @click="activeFilter = filter"
           class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
@@ -283,6 +285,13 @@ const getStatusColor = (status: string) => {
                 :class="[project.status === 'Terminé' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
               >
                 Fini
+              </button>
+              <button 
+                @click="updateStatus(project.id, 'Traité')"
+                class="flex-1 py-1 text-[9px] font-bold rounded border transition-all"
+                :class="[project.status === 'Traité' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
+              >
+                Traité
               </button>
             </div>
           </div>

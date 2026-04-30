@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '@/views/Dashboard.vue'
 import POS from '@/views/POS.vue'
 import Projects from '@/views/Projects.vue'
+import SoftwareProjects from '@/views/SoftwareProjects.vue'
 import Customers from '@/views/Customers.vue'
 import CustomerDetail from '@/views/CustomerDetail.vue'
 import CustomerTracking from '@/views/CustomerTracking.vue'
@@ -39,6 +40,12 @@ const router = createRouter({
       path: '/projects',
       name: 'projects',
       component: Projects,
+      meta: { layout: 'admin' }
+    },
+    {
+      path: '/software',
+      name: 'software',
+      component: SoftwareProjects,
       meta: { layout: 'admin' }
     },
     {

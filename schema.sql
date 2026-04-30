@@ -23,6 +23,27 @@ CREATE TABLE IF NOT EXISTS project_notes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 2.b. Table: Software Projects
+CREATE TABLE IF NOT EXISTS software_projects (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    client TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Planifié',
+    progress INTEGER DEFAULT 0,
+    deadline TEXT,
+    priority TEXT DEFAULT 'Moyenne',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2.c. Table: Software Project Notes
+CREATE TABLE IF NOT EXISTS software_project_notes (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER REFERENCES software_projects(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    date TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 3. Table: Installations (Suivi Poseurs)
 CREATE TABLE IF NOT EXISTS installations (
     id SERIAL PRIMARY KEY,
@@ -69,6 +90,8 @@ CREATE TABLE IF NOT EXISTS transactions (
 -- Activer Row Level Security (RLS) pour la sécurité
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE software_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE software_project_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE installations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE installation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
@@ -79,6 +102,20 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all read" ON projects FOR SELECT USING (true);
 CREATE POLICY "Allow all write" ON projects FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow all update" ON projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON project_notes FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON software_projects FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON software_projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON software_projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON software_projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON software_project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON software_project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON software_project_notes FOR DELETE USING (true);
 
 CREATE POLICY "Allow all read notes" ON project_notes FOR SELECT USING (true);
 CREATE POLICY "Allow all write notes" ON project_notes FOR INSERT WITH CHECK (true);

@@ -173,8 +173,13 @@ const newTask = ref({
   priority: 'Normale'
 })
 
-const openAddModal = (date: Date) => {
+const openAddModal = (date: Date, initialStatus?: string) => {
   selectedDate.value = date.toISOString().split('T')[0]
+  if (initialStatus) {
+    newTask.value.status = initialStatus
+  } else {
+    newTask.value.status = 'A faire'
+  }
   showAddModal.value = true
 }
 
@@ -356,7 +361,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
                 {{ tasks.filter(t => t.status === status).length }}
               </span>
            </div>
-           <button class="text-slate-300 hover:text-slate-500 transition-colors">
+           <button @click="openAddModal(new Date(), status)" class="text-slate-300 hover:text-slate-500 transition-colors">
               <Plus class="h-4 w-4" />
            </button>
         </div>
@@ -401,6 +406,15 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           <div v-if="tasks.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
              <p class="text-[9px] font-black uppercase tracking-widest text-slate-400">Aucune tâche</p>
           </div>
+
+          <Button 
+            variant="ghost" 
+            class="w-full border-2 border-dashed border-slate-200 text-slate-400 hover:border-indigo-200 hover:text-indigo-500 hover:bg-indigo-50/30 h-12 rounded-2xl transition-all group mt-2"
+            @click="openAddModal(new Date(), status)"
+          >
+            <Plus class="h-4 w-4 mr-1.5 group-hover:rotate-90 transition-transform" />
+            <span class="text-[10px] font-black uppercase tracking-widest">Ajouter</span>
+          </Button>
         </div>
       </div>
     </div>

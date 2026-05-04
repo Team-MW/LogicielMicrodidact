@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS calendar_tasks (
     task_description TEXT NOT NULL,
     task_date DATE NOT NULL,
     project_link TEXT,
+    status TEXT DEFAULT 'A faire',
+    priority TEXT DEFAULT 'Normale',
     is_completed BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

@@ -6,13 +6,17 @@ import { Input } from '@/components/ui/input'
 import { 
   Plus, 
   Trash2, 
-  CheckCircle2, 
-  Circle, 
   ChevronLeft, 
   ChevronRight,
   User,
   X,
-  Link as LinkIcon
+  Link as LinkIcon,
+  LayoutGrid,
+  List as ListIcon,
+  Flag,
+  Clock,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-vue-next'
 
 interface CalendarTask {
@@ -21,12 +25,29 @@ interface CalendarTask {
   task_description: string
   task_date: string
   project_link?: string
+  status: string
+  priority: string
   is_completed: boolean
 }
 
 const tasks = ref<CalendarTask[]>([])
 const isLoading = ref(true)
 const currentWeekStart = ref(new Date())
+const activeView = ref<'calendar' | 'list'>('calendar')
+
+const statusColors: Record<string, string> = {
+  'A faire': 'bg-slate-100 text-slate-500 border-slate-200',
+  'En cours': 'bg-blue-50 text-blue-600 border-blue-100',
+  'Bloqué': 'bg-rose-50 text-rose-600 border-rose-100',
+  'Terminé': 'bg-emerald-50 text-emerald-600 border-emerald-100'
+}
+
+const priorityColors: Record<string, string> = {
+  'Basse': 'text-slate-400',
+  'Normale': 'text-blue-500',
+  'Haute': 'text-orange-500',
+  'Urgente': 'text-rose-600'
+}
 
 const parseTextWithLinks = (text: string) => {
   if (!text) return ''
@@ -107,7 +128,9 @@ const selectedDate = ref('')
 const newTask = ref({
   intern_name: '',
   task_description: '',
-  project_link: ''
+  project_link: '',
+  status: 'A faire',
+  priority: 'Normale'
 })
 
 const openAddModal = (date: Date) => {
@@ -124,27 +147,31 @@ const addTask = async () => {
       intern_name: newTask.value.intern_name,
       task_description: newTask.value.task_description,
       project_link: newTask.value.project_link,
+      status: newTask.value.status,
+      priority: newTask.value.priority,
       task_date: selectedDate.value,
-      is_completed: false
+      is_completed: newTask.value.status === 'Terminé'
     })
     .select()
     .single()
 
   if (data && !error) {
     tasks.value.push(data)
-    newTask.value = { intern_name: '', task_description: '', project_link: '' }
+    newTask.value = { intern_name: '', task_description: '', project_link: '', status: 'A faire', priority: 'Normale' }
     showAddModal.value = false
   }
 }
 
-const toggleComplete = async (task: CalendarTask) => {
+const updateTaskStatus = async (task: CalendarTask, newStatus: string) => {
+  const isCompleted = newStatus === 'Terminé'
   const { error } = await supabase
     .from('calendar_tasks')
-    .update({ is_completed: !task.is_completed })
+    .update({ status: newStatus, is_completed: isCompleted })
     .eq('id', task.id)
 
   if (!error) {
-    task.is_completed = !task.is_completed
+    task.status = newStatus
+    task.is_completed = isCompleted
   }
 }
 
@@ -166,27 +193,50 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
 
 <template>
   <div class="flex-1 space-y-6 p-6 bg-slate-50/30 min-h-screen relative">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <!-- Header with View Switcher -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
       <div>
-        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Planning Stagiaires</h2>
-        <p class="text-muted-foreground text-xs">Organisation hebdomadaire des tâches.</p>
+        <h2 class="text-2xl font-black tracking-tight text-slate-900">Organisation & Missions</h2>
+        <p class="text-muted-foreground text-xs font-medium">Gérez vos tâches comme sur ClickUp.</p>
       </div>
       
-      <div class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-        <Button variant="ghost" size="icon" @click="prevWeek" class="h-8 w-8 rounded-lg text-slate-500">
-          <ChevronLeft class="h-4 w-4" />
-        </Button>
-        <span class="text-xs font-bold px-4 min-w-[180px] text-center text-slate-700">
-          Semaine du {{ currentWeekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) }}
-        </span>
-        <Button variant="ghost" size="icon" @click="nextWeek" class="h-8 w-8 rounded-lg text-slate-500">
-          <ChevronRight class="h-4 w-4" />
-        </Button>
+      <div class="flex items-center gap-4">
+        <!-- View Switcher -->
+        <div class="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+          <button 
+            @click="activeView = 'calendar'"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+            :class="activeView === 'calendar' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
+          >
+            <LayoutGrid class="h-3.5 w-3.5" />
+            <span>Calendrier</span>
+          </button>
+          <button 
+            @click="activeView = 'list'"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+            :class="activeView === 'list' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
+          >
+            <ListIcon class="h-3.5 w-3.5" />
+            <span>Liste</span>
+          </button>
+        </div>
+
+        <div v-if="activeView === 'calendar'" class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+          <Button variant="ghost" size="icon" @click="prevWeek" class="h-8 w-8 rounded-lg text-slate-500">
+            <ChevronLeft class="h-4 w-4" />
+          </Button>
+          <span class="text-[10px] font-black px-4 min-w-[150px] text-center text-slate-700 uppercase tracking-widest">
+            {{ currentWeekStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) }}
+          </span>
+          <Button variant="ghost" size="icon" @click="nextWeek" class="h-8 w-8 rounded-lg text-slate-500">
+            <ChevronRight class="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
 
-    <!-- Calendar Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
+    <!-- CALENDAR VIEW -->
+    <div v-if="activeView === 'calendar'" class="grid grid-cols-1 md:grid-cols-7 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div v-for="day in weekDays" :key="day.getTime()" class="flex flex-col gap-3">
         <div class="flex flex-col p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
           <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">{{ day.toLocaleDateString('fr-FR', { weekday: 'long' }) }}</span>
@@ -200,25 +250,30 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
             @click="selectedTaskForView = task"
           >
             <div class="flex items-start justify-between gap-2">
-              <div class="space-y-2">
-                <div class="flex items-center gap-1.5">
-                  <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center">
-                    <User class="h-3 w-3 text-indigo-500" />
+              <div class="space-y-2 w-full">
+                <div class="flex items-center justify-between">
+                   <div class="flex items-center gap-1.5">
+                    <div class="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center">
+                      <User class="h-3 w-3 text-indigo-500" />
+                    </div>
+                    <span class="text-[9px] font-black text-indigo-600 uppercase tracking-tight">{{ task.intern_name }}</span>
                   </div>
-                  <span class="text-[10px] font-black text-indigo-600 uppercase tracking-tight">{{ task.intern_name }}</span>
+                  <Flag class="h-3 w-3" :class="priorityColors[task.priority]" />
                 </div>
-                <p class="text-xs font-bold text-slate-700 leading-relaxed line-clamp-4" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
+                
+                <p class="text-xs font-bold text-slate-700 leading-relaxed line-clamp-3" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
                   {{ task.task_description }}
                 </p>
-                <div v-if="task.project_link" class="flex items-center gap-1 mt-1">
-                   <LinkIcon class="h-3 w-3 text-indigo-400" />
-                   <span class="text-[9px] font-black text-indigo-500 uppercase tracking-tight">Projet lié</span>
+
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                  <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border" :class="statusColors[task.status]">
+                    {{ task.status }}
+                  </span>
+                  <div v-if="task.project_link" class="flex items-center gap-1">
+                     <LinkIcon class="h-2.5 w-2.5 text-slate-300" />
+                  </div>
                 </div>
               </div>
-              <button @click.stop="toggleComplete(task)" class="shrink-0 transition-all active:scale-90">
-                <CheckCircle2 v-if="task.is_completed" class="h-5 w-5 text-emerald-500" />
-                <Circle v-else class="h-5 w-5 text-slate-200 hover:text-indigo-500" />
-              </button>
             </div>
             
             <button 
@@ -230,6 +285,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
 
             <!-- Progress line -->
             <div v-if="task.is_completed" class="absolute bottom-0 left-0 h-1 bg-emerald-500 w-full"></div>
+            <div v-else-if="task.status === 'En cours'" class="absolute bottom-0 left-0 h-1 bg-blue-500 w-full animate-pulse"></div>
           </div>
 
           <Button 
@@ -244,94 +300,222 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
       </div>
     </div>
 
-    <!-- Modal: Nouvelle Tâche -->
+    <!-- LIST VIEW -->
+    <div v-else class="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse">
+          <thead>
+            <tr class="bg-slate-50/50 border-b border-slate-100">
+              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Statut</th>
+              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Mission</th>
+              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigné</th>
+              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Priorité</th>
+              <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50">
+            <tr v-for="task in tasks" :key="task.id" class="hover:bg-slate-50/30 transition-colors group">
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border" :class="statusColors[task.status]">
+                  {{ task.status }}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex flex-col gap-1 max-w-md">
+                  <span class="text-sm font-bold text-slate-700 truncate" :class="[task.is_completed ? 'line-through text-slate-400' : '']">{{ task.task_description }}</span>
+                  <div v-if="task.project_link" class="flex items-center gap-1.5">
+                    <LinkIcon class="h-3 w-3 text-indigo-400" />
+                    <span class="text-[10px] text-indigo-500 font-bold truncate">{{ task.project_link }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                    <User class="h-3.5 w-3.5 text-slate-500" />
+                  </div>
+                  <span class="text-sm font-black text-slate-600">{{ task.intern_name }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-1.5 text-slate-500">
+                  <Clock class="h-3.5 w-3.5" />
+                  <span class="text-[10px] font-black uppercase tracking-tight">{{ new Date(task.task_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-1.5">
+                  <Flag class="h-3.5 w-3.5" :class="priorityColors[task.priority]" />
+                  <span class="text-[10px] font-black uppercase tracking-tight" :class="priorityColors[task.priority]">{{ task.priority }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="selectedTaskForView = task" class="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl transition-colors">
+                    <LayoutGrid class="h-4 w-4" />
+                  </button>
+                  <button @click="deleteTask(task.id)" class="p-2 hover:bg-rose-50 text-rose-500 rounded-xl transition-colors">
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal: Nouvelle Tâche (Style ClickUp) -->
     <div v-if="showAddModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" @click="showAddModal = false">
-      <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
-        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <div class="bg-white rounded-[32px] max-w-xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
+        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
           <div>
-            <h3 class="text-xl font-black text-slate-900">Nouvelle Mission</h3>
-            <p class="text-[10px] text-indigo-600 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedDate)) }}</p>
+            <div class="flex items-center gap-2 mb-1">
+               <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest">ClickUp Mode</span>
+               <h3 class="text-xl font-black text-slate-900">Nouvelle Mission</h3>
+            </div>
+            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedDate)) }}</p>
           </div>
           <button @click="showAddModal = false" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
             <X class="h-5 w-5" />
           </button>
         </div>
 
-        <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nom du Stagiaire</label>
-            <div class="relative">
-              <User class="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input v-model="newTask.intern_name" placeholder="Ex: Jean Dupont" class="pl-11 h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
+        <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+          <div class="grid grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                <User class="h-3 w-3" /> Assigné
+              </label>
+              <Input v-model="newTask.intern_name" placeholder="Nom du stagiaire" class="h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                <Flag class="h-3 w-3" /> Priorité
+              </label>
+              <select v-model="newTask.priority" class="w-full h-12 px-4 rounded-2xl border border-slate-200 text-sm font-bold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none">
+                <option value="Basse">Basse</option>
+                <option value="Normale">Normale</option>
+                <option value="Haute">Haute</option>
+                <option value="Urgente">Urgente</option>
+              </select>
             </div>
           </div>
           
-          <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lien du projet (Optionnel)</label>
-            <div class="relative">
-              <LinkIcon class="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input v-model="newTask.project_link" placeholder="https://..." class="pl-11 h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
+          <div class="grid grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                <AlertCircle class="h-3 w-3" /> Statut
+              </label>
+              <select v-model="newTask.status" class="w-full h-12 px-4 rounded-2xl border border-slate-200 text-sm font-bold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none">
+                <option value="A faire">A faire</option>
+                <option value="En cours">En cours</option>
+                <option value="Bloqué">Bloqué</option>
+                <option value="Terminé">Terminé</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                <LinkIcon class="h-3 w-3" /> Lien Projet
+              </label>
+              <Input v-model="newTask.project_link" placeholder="https://..." class="h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
             </div>
           </div>
 
           <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mission à accomplir</label>
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+              <ListIcon class="h-3 w-3" /> Description de la mission
+            </label>
             <textarea 
               v-model="newTask.task_description" 
-              class="w-full min-h-[120px] p-4 rounded-2xl border border-slate-200 text-sm font-bold focus:border-indigo-500 focus:ring-8 focus:ring-indigo-50 transition-all outline-none placeholder:text-slate-300"
-              placeholder="Décrivez précisément la tâche..."
+              class="w-full min-h-[150px] p-4 rounded-2xl border border-slate-200 text-sm font-bold focus:border-indigo-500 focus:ring-8 focus:ring-indigo-50 transition-all outline-none placeholder:text-slate-300"
+              placeholder="Décrivez précisément les étapes à suivre..."
             ></textarea>
           </div>
         </div>
 
-        <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
-          <Button variant="ghost" class="flex-1 h-12 rounded-2xl font-black text-xs uppercase tracking-widest" @click="showAddModal = false">Annuler</Button>
-          <Button class="flex-1 h-12 bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-200 rounded-2xl font-black text-xs uppercase tracking-widest" @click="addTask">Enregistrer</Button>
+        <div class="p-8 bg-slate-50/30 border-t border-slate-100 flex gap-4">
+          <Button variant="ghost" class="flex-1 h-14 rounded-2xl font-black text-xs uppercase tracking-widest" @click="showAddModal = false">Annuler</Button>
+          <Button class="flex-1 h-14 bg-indigo-600 hover:bg-indigo-500 shadow-xl shadow-indigo-100 rounded-2xl font-black text-xs uppercase tracking-widest" @click="addTask">Créer la tâche</Button>
         </div>
       </div>
     </div>
 
-    <!-- Modal: Voir Tâche (En gros) -->
+    <!-- Modal: Voir Tâche (ClickUp Style) -->
     <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" @click="selectedTaskForView = null">
-      <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
-        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div class="flex items-center gap-3">
-             <div class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
-                <User class="h-5 w-5 text-indigo-500" />
+      <div class="bg-white rounded-[32px] max-w-2xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
+        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+          <div class="flex items-center gap-4">
+             <div class="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+                <User class="h-6 w-6 text-indigo-500" />
               </div>
               <div>
-                <h3 class="text-xl font-black text-slate-900">{{ selectedTaskForView.intern_name }}</h3>
-                <p class="text-[10px] text-indigo-600 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-xl font-black text-slate-900">{{ selectedTaskForView.intern_name }}</h3>
+                  <Flag class="h-4 w-4" :class="priorityColors[selectedTaskForView.priority]" />
+                </div>
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
               </div>
           </div>
-          <button @click="selectedTaskForView = null" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
-            <X class="h-5 w-5" />
-          </button>
+          <div class="flex items-center gap-2">
+             <button @click="updateTaskStatus(selectedTaskForView, 'Terminé')" v-if="selectedTaskForView.status !== 'Terminé'" class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">
+                <CheckCircle class="h-3.5 w-3.5" /> Terminer
+             </button>
+             <button @click="selectedTaskForView = null" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
+               <X class="h-5 w-5" />
+             </button>
+          </div>
         </div>
 
-        <div class="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
-          <div v-if="selectedTaskForView.project_link" class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50 flex items-center gap-3">
-             <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                <LinkIcon class="h-4 w-4 text-indigo-600" />
+        <div class="p-10 space-y-8 max-h-[60vh] overflow-y-auto">
+          <!-- Details Grid -->
+          <div class="grid grid-cols-3 gap-6 pb-6 border-b border-slate-50">
+             <div class="space-y-1">
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Statut</p>
+               <div class="flex items-center gap-2">
+                 <div class="w-2 h-2 rounded-full" :class="statusColors[selectedTaskForView.status].split(' ')[0]"></div>
+                 <span class="text-xs font-black uppercase tracking-tight" :class="statusColors[selectedTaskForView.status].split(' ')[1]">{{ selectedTaskForView.status }}</span>
+               </div>
+             </div>
+             <div class="space-y-1 text-center border-x border-slate-50 px-6">
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Priorité</p>
+               <div class="flex items-center justify-center gap-2">
+                 <Flag class="h-3.5 w-3.5" :class="priorityColors[selectedTaskForView.priority]" />
+                 <span class="text-xs font-black uppercase tracking-tight" :class="priorityColors[selectedTaskForView.priority]">{{ selectedTaskForView.priority }}</span>
+               </div>
+             </div>
+             <div class="space-y-1 text-right">
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Création</p>
+               <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ new Date(selectedTaskForView.task_date).toLocaleDateString('fr-FR') }}</span>
+             </div>
+          </div>
+
+          <div v-if="selectedTaskForView.project_link" class="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50 flex items-center gap-4 group">
+             <div class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform">
+                <LinkIcon class="h-5 w-5 text-indigo-600" />
              </div>
              <div class="flex-1 min-w-0">
-               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Lien du Projet</p>
-               <p class="truncate" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
+               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Lien du Projet</p>
+               <p class="truncate text-sm font-bold" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
              </div>
           </div>
 
-          <div class="space-y-2">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Détails de la mission</p>
-            <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
+          <div class="space-y-4">
+            <div class="flex items-center gap-2">
+               <div class="w-1 h-6 bg-indigo-600 rounded-full"></div>
+               <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest">Description de la mission</p>
+            </div>
+            <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-3xl" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
           </div>
         </div>
 
-        <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4 items-center">
-           <Badge :variant="selectedTaskForView.is_completed ? 'default' : 'outline'" class="rounded-full px-4 py-1.5 font-black text-[10px] uppercase tracking-widest" :class="selectedTaskForView.is_completed ? 'bg-emerald-500 hover:bg-emerald-600 border-none text-white' : 'border-slate-200 text-slate-400'">
-             {{ selectedTaskForView.is_completed ? 'Terminé' : 'En attente' }}
-           </Badge>
+        <div class="p-8 bg-slate-50/30 border-t border-slate-100 flex gap-4 items-center">
+           <button @click="deleteTask(selectedTaskForView.id); selectedTaskForView = null" class="text-rose-500 hover:text-rose-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-rose-50 rounded-xl transition-all">
+              <Trash2 class="h-4 w-4" /> Supprimer
+           </button>
            <div class="flex-1"></div>
-           <Button variant="ghost" class="h-10 rounded-xl font-black text-xs uppercase tracking-widest" @click="selectedTaskForView = null">Fermer</Button>
+           <Button variant="ghost" class="h-12 px-8 rounded-2xl font-black text-xs uppercase tracking-widest" @click="selectedTaskForView = null">Fermer</Button>
         </div>
       </div>
     </div>
@@ -343,9 +527,9 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
   min-height: calc(100vh - 4rem);
 }
 
-.line-clamp-4 {
+.line-clamp-3 {
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;  
   overflow: hidden;
 }

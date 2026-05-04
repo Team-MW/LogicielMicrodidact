@@ -200,13 +200,13 @@ const getStatusColor = (status: string) => {
 
     <!-- Search and Filters -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
+      <div class="flex overflow-x-auto no-scrollbar gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit shrink-0">
         <button 
           v-for="filter in ['Tous', 'En cours', 'Terminés', 'Traité', 'Nouveaux']" 
           :key="filter"
           @click="activeFilter = filter"
-          class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
-          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+          class="px-4 py-2 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap"
+          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
         >
           {{ filter }}
         </button>

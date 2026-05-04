@@ -203,21 +203,21 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
 </script>
 
 <template>
-  <div class="flex-1 space-y-6 p-6 bg-slate-50/30 min-h-screen relative">
+  <div class="flex-1 space-y-4 md:space-y-6 p-3 md:p-6 bg-slate-50/30 min-h-screen relative">
     <!-- Header with View Switcher -->
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 md:gap-6">
       <div>
         <h2 class="text-2xl font-black tracking-tight text-slate-900 uppercase">Organisation & Missions</h2>
         <p class="text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-60">Gérez vos tâches comme sur ClickUp.</p>
       </div>
       
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
         <!-- Date Navigation (Left) -->
-        <div v-if="activeView === 'calendar'" class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-left-4">
+        <div v-if="activeView === 'calendar'" class="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-left-4 w-full sm:w-auto justify-between sm:justify-start">
           <Button variant="ghost" size="icon" @click="prevWeek" class="h-8 w-8 rounded-lg text-slate-500">
             <ChevronLeft class="h-4 w-4" />
           </Button>
-          <span class="text-[10px] font-black px-4 min-w-[150px] text-center text-slate-700 uppercase tracking-widest">
+          <span class="text-[9px] sm:text-[10px] font-black px-2 sm:px-4 min-w-[120px] sm:min-w-[150px] text-center text-slate-700 uppercase tracking-widest truncate">
             {{ currentWeekStart.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) }}
           </span>
           <Button variant="ghost" size="icon" @click="nextWeek" class="h-8 w-8 rounded-lg text-slate-500">
@@ -226,10 +226,10 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
         </div>
 
         <!-- View Switcher (Right) -->
-        <div class="flex bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm">
+        <div class="flex bg-white border border-slate-200 p-1 rounded-2xl shadow-sm w-full sm:w-auto overflow-x-auto no-scrollbar">
           <button 
             @click="activeView = 'calendar'"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap"
             :class="activeView === 'calendar' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
           >
             <LayoutGrid class="h-3.5 w-3.5" />
@@ -237,7 +237,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           </button>
           <button 
             @click="activeView = 'board'"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap"
             :class="activeView === 'board' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
           >
             <LayoutGrid class="h-3.5 w-3.5 rotate-90" />
@@ -386,9 +386,9 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
     </div>
 
     <!-- Modal: Nouvelle Tâche (Style ClickUp) -->
-    <div v-if="showAddModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" @click="showAddModal = false">
-      <div class="bg-white rounded-[32px] max-w-xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
-        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+    <div v-if="showAddModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click="showAddModal = false">
+      <div class="bg-white rounded-t-[32px] sm:rounded-[32px] max-w-xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom sm:zoom-in-95 duration-300 h-[90vh] sm:h-auto" @click.stop>
+        <div class="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
           <div>
             <div class="flex items-center gap-2 mb-1">
                <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest">ClickUp Mode</span>
@@ -462,9 +462,9 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
     </div>
 
     <!-- Modal: Voir Tâche (ClickUp Style) -->
-    <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" @click="selectedTaskForView = null">
-      <div class="bg-white rounded-[32px] max-w-2xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
-        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+    <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click="selectedTaskForView = null">
+      <div class="bg-white rounded-t-[32px] sm:rounded-[32px] max-w-2xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom sm:zoom-in-95 duration-300 h-[90vh] sm:h-auto" @click.stop>
+        <div class="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
           <div class="flex items-center gap-4">
              <div class="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
                 <User class="h-6 w-6 text-indigo-500" />

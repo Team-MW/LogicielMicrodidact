@@ -12,7 +12,6 @@ import {
   X,
   Link as LinkIcon,
   LayoutGrid,
-  List as ListIcon,
   Flag,
   Clock,
   CheckCircle,
@@ -33,7 +32,9 @@ interface CalendarTask {
 const tasks = ref<CalendarTask[]>([])
 const isLoading = ref(true)
 const currentWeekStart = ref(new Date())
-const activeView = ref<'calendar' | 'list'>('calendar')
+const activeView = ref<'calendar' | 'board'>('calendar')
+
+const statuses = ['A faire', 'En cours', 'Bloqué', 'Terminé']
 
 const statusColors: Record<string, string> = {
   'A faire': 'bg-slate-100 text-slate-500 border-slate-200',
@@ -47,6 +48,45 @@ const priorityColors: Record<string, string> = {
   'Normale': 'text-blue-500',
   'Haute': 'text-orange-500',
   'Urgente': 'text-rose-600'
+}
+
+// Drag and Drop Logic
+const draggedTask = ref<CalendarTask | null>(null)
+
+const onDragStart = (task: CalendarTask) => {
+  draggedTask.value = task
+}
+
+const onDrop = async (newStatus: string) => {
+  if (!draggedTask.value || draggedTask.value.status === newStatus) return
+
+  const taskToUpdate = draggedTask.value
+  const oldStatus = taskToUpdate.status
+  
+  // Optimistic update
+  taskToUpdate.status = newStatus
+  taskToUpdate.is_completed = newStatus === 'Terminé'
+
+  const { error } = await supabase
+    .from('calendar_tasks')
+    .update({ 
+      status: newStatus, 
+      is_completed: newStatus === 'Terminé' 
+    })
+    .eq('id', taskToUpdate.id)
+
+  if (error) {
+    // Rollback
+    taskToUpdate.status = oldStatus
+    taskToUpdate.is_completed = oldStatus === 'Terminé'
+    alert('Erreur lors du déplacement de la tâche')
+  }
+  
+  draggedTask.value = null
+}
+
+const onDragOver = (event: DragEvent) => {
+  event.preventDefault()
 }
 
 const parseTextWithLinks = (text: string) => {
@@ -196,32 +236,13 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
     <!-- Header with View Switcher -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
       <div>
-        <h2 class="text-2xl font-black tracking-tight text-slate-900">Organisation & Missions</h2>
-        <p class="text-muted-foreground text-xs font-medium">Gérez vos tâches comme sur ClickUp.</p>
+        <h2 class="text-2xl font-black tracking-tight text-slate-900 uppercase">Organisation & Missions</h2>
+        <p class="text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-60">Gérez vos tâches comme sur ClickUp.</p>
       </div>
       
       <div class="flex items-center gap-4">
-        <!-- View Switcher -->
-        <div class="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-          <button 
-            @click="activeView = 'calendar'"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
-            :class="activeView === 'calendar' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
-          >
-            <LayoutGrid class="h-3.5 w-3.5" />
-            <span>Calendrier</span>
-          </button>
-          <button 
-            @click="activeView = 'list'"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
-            :class="activeView === 'list' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
-          >
-            <ListIcon class="h-3.5 w-3.5" />
-            <span>Liste</span>
-          </button>
-        </div>
-
-        <div v-if="activeView === 'calendar'" class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+        <!-- Date Navigation (Left) -->
+        <div v-if="activeView === 'calendar'" class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-left-4">
           <Button variant="ghost" size="icon" @click="prevWeek" class="h-8 w-8 rounded-lg text-slate-500">
             <ChevronLeft class="h-4 w-4" />
           </Button>
@@ -231,6 +252,26 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           <Button variant="ghost" size="icon" @click="nextWeek" class="h-8 w-8 rounded-lg text-slate-500">
             <ChevronRight class="h-4 w-4" />
           </Button>
+        </div>
+
+        <!-- View Switcher (Right) -->
+        <div class="flex bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm">
+          <button 
+            @click="activeView = 'calendar'"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            :class="activeView === 'calendar' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
+          >
+            <LayoutGrid class="h-3.5 w-3.5" />
+            <span>Calendrier</span>
+          </button>
+          <button 
+            @click="activeView = 'board'"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            :class="activeView === 'board' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'"
+          >
+            <LayoutGrid class="h-3.5 w-3.5 rotate-90" />
+            <span>Tableau</span>
+          </button>
         </div>
       </div>
     </div>
@@ -258,7 +299,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
                     </div>
                     <span class="text-[9px] font-black text-indigo-600 uppercase tracking-tight">{{ task.intern_name }}</span>
                   </div>
-                  <Flag class="h-3 w-3" :class="priorityColors[task.priority]" />
+                  <Flag class="h-3 w-3" :class="priorityColors[task.priority] || 'text-slate-400'" />
                 </div>
                 
                 <p class="text-xs font-bold text-slate-700 leading-relaxed line-clamp-3" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
@@ -266,8 +307,8 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
                 </p>
 
                 <div class="flex flex-wrap items-center gap-2 pt-1">
-                  <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border" :class="statusColors[task.status]">
-                    {{ task.status }}
+                  <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border" :class="statusColors[task.status] || 'bg-slate-100 text-slate-500 border-slate-200'">
+                    {{ task.status || 'A faire' }}
                   </span>
                   <div v-if="task.project_link" class="flex items-center gap-1">
                      <LinkIcon class="h-2.5 w-2.5 text-slate-300" />
@@ -300,69 +341,67 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
       </div>
     </div>
 
-    <!-- LIST VIEW -->
-    <div v-else class="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-slate-50/50 border-b border-slate-100">
-              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Statut</th>
-              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Mission</th>
-              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigné</th>
-              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-              <th class="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Priorité</th>
-              <th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-50">
-            <tr v-for="task in tasks" :key="task.id" class="hover:bg-slate-50/30 transition-colors group">
-              <td class="px-6 py-4">
-                <span class="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border" :class="statusColors[task.status]">
-                  {{ task.status }}
-                </span>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex flex-col gap-1 max-w-md">
-                  <span class="text-sm font-bold text-slate-700 truncate" :class="[task.is_completed ? 'line-through text-slate-400' : '']">{{ task.task_description }}</span>
-                  <div v-if="task.project_link" class="flex items-center gap-1.5">
-                    <LinkIcon class="h-3 w-3 text-indigo-400" />
-                    <span class="text-[10px] text-indigo-500 font-bold truncate">{{ task.project_link }}</span>
+    <!-- BOARD VIEW (KANBAN) -->
+    <div v-else-if="activeView === 'board'" class="flex gap-6 overflow-x-auto pb-6 animate-in fade-in slide-in-from-right-4 duration-500 min-h-[70vh]">
+      <div v-for="status in statuses" :key="status" 
+        class="flex-shrink-0 w-80 flex flex-col gap-4 p-4 rounded-3xl bg-slate-100/50 border border-slate-100/50"
+        @dragover="onDragOver"
+        @drop="onDrop(status)"
+      >
+        <div class="flex items-center justify-between px-2">
+           <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded-full shadow-sm" :class="(statusColors[status] || '').split(' ')[0]"></div>
+              <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-600">{{ status }}</h3>
+              <span class="px-2 py-0.5 rounded-full bg-white text-[9px] font-black text-slate-400 shadow-xs">
+                {{ tasks.filter(t => t.status === status).length }}
+              </span>
+           </div>
+           <button class="text-slate-300 hover:text-slate-500 transition-colors">
+              <Plus class="h-4 w-4" />
+           </button>
+        </div>
+
+        <div class="flex-1 space-y-3">
+          <div v-for="task in tasks.filter(t => t.status === status)" :key="task.id"
+            draggable="true"
+            @dragstart="onDragStart(task)"
+            class="group p-5 bg-white border border-slate-100 rounded-2xl shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-grab active:cursor-grabbing relative overflow-hidden"
+            @click="selectedTaskForView = task"
+          >
+            <div class="space-y-3">
+               <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
+                       <User class="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-tight">{{ task.intern_name }}</span>
                   </div>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                    <User class="h-3.5 w-3.5 text-slate-500" />
+                  <Flag class="h-3.5 w-3.5" :class="priorityColors[task.priority] || 'text-slate-300'" />
+               </div>
+
+               <p class="text-sm font-bold text-slate-700 leading-snug">
+                 {{ task.task_description }}
+               </p>
+
+               <div class="flex items-center justify-between pt-2">
+                  <div class="flex items-center gap-2">
+                    <Clock class="h-3 w-3 text-slate-300" />
+                    <span class="text-[9px] font-black text-slate-400 uppercase">{{ new Date(task.task_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }}</span>
                   </div>
-                  <span class="text-sm font-black text-slate-600">{{ task.intern_name }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-1.5 text-slate-500">
-                  <Clock class="h-3.5 w-3.5" />
-                  <span class="text-[10px] font-black uppercase tracking-tight">{{ new Date(task.task_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-1.5">
-                  <Flag class="h-3.5 w-3.5" :class="priorityColors[task.priority]" />
-                  <span class="text-[10px] font-black uppercase tracking-tight" :class="priorityColors[task.priority]">{{ task.priority }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4 text-right">
-                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="selectedTaskForView = task" class="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl transition-colors">
-                    <LayoutGrid class="h-4 w-4" />
-                  </button>
-                  <button @click="deleteTask(task.id)" class="p-2 hover:bg-rose-50 text-rose-500 rounded-xl transition-colors">
-                    <Trash2 class="h-4 w-4" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <div v-if="task.project_link" class="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
+                     <LinkIcon class="h-3 w-3 text-indigo-400" />
+                  </div>
+               </div>
+            </div>
+
+            <!-- Accent line -->
+            <div class="absolute top-0 left-0 w-1 h-full" :class="(statusColors[status] || '').split(' ')[0]"></div>
+          </div>
+          
+          <div v-if="tasks.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
+             <p class="text-[9px] font-black uppercase tracking-widest text-slate-400">Aucune tâche</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -373,9 +412,9 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           <div>
             <div class="flex items-center gap-2 mb-1">
                <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest">ClickUp Mode</span>
-               <h3 class="text-xl font-black text-slate-900">Nouvelle Mission</h3>
+               <h3 class="text-xl font-black text-slate-900 uppercase tracking-tight">Nouvelle Mission</h3>
             </div>
-            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedDate)) }}</p>
+            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ formatDate(new Date(selectedDate)) }}</p>
           </div>
           <button @click="showAddModal = false" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
             <X class="h-5 w-5" />
@@ -452,10 +491,10 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-xl font-black text-slate-900">{{ selectedTaskForView.intern_name }}</h3>
-                  <Flag class="h-4 w-4" :class="priorityColors[selectedTaskForView.priority]" />
+                  <h3 class="text-xl font-black text-slate-900 uppercase tracking-tight">{{ selectedTaskForView.intern_name }}</h3>
+                  <Flag class="h-4 w-4" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'" />
                 </div>
-                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
               </div>
           </div>
           <div class="flex items-center gap-2">
@@ -472,21 +511,21 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           <!-- Details Grid -->
           <div class="grid grid-cols-3 gap-6 pb-6 border-b border-slate-50">
              <div class="space-y-1">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Statut</p>
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Statut</p>
                <div class="flex items-center gap-2">
-                 <div class="w-2 h-2 rounded-full" :class="statusColors[selectedTaskForView.status].split(' ')[0]"></div>
-                 <span class="text-xs font-black uppercase tracking-tight" :class="statusColors[selectedTaskForView.status].split(' ')[1]">{{ selectedTaskForView.status }}</span>
+                 <div class="w-2 h-2 rounded-full" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[0]"></div>
+                 <span class="text-xs font-black uppercase tracking-tight" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[1]">{{ selectedTaskForView.status || 'A faire' }}</span>
                </div>
              </div>
              <div class="space-y-1 text-center border-x border-slate-50 px-6">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Priorité</p>
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Priorité</p>
                <div class="flex items-center justify-center gap-2">
-                 <Flag class="h-3.5 w-3.5" :class="priorityColors[selectedTaskForView.priority]" />
-                 <span class="text-xs font-black uppercase tracking-tight" :class="priorityColors[selectedTaskForView.priority]">{{ selectedTaskForView.priority }}</span>
+                 <Flag class="h-3.5 w-3.5" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'" />
+                 <span class="text-xs font-black uppercase tracking-tight" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'">{{ selectedTaskForView.priority || 'Normale' }}</span>
                </div>
              </div>
              <div class="space-y-1 text-right">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Création</p>
+               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Création</p>
                <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ new Date(selectedTaskForView.task_date).toLocaleDateString('fr-FR') }}</span>
              </div>
           </div>
@@ -496,7 +535,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
                 <LinkIcon class="h-5 w-5 text-indigo-600" />
              </div>
              <div class="flex-1 min-w-0">
-               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Lien du Projet</p>
+               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 opacity-60">Lien du Projet</p>
                <p class="truncate text-sm font-bold" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
              </div>
           </div>
@@ -504,7 +543,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           <div class="space-y-4">
             <div class="flex items-center gap-2">
                <div class="w-1 h-6 bg-indigo-600 rounded-full"></div>
-               <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest">Description de la mission</p>
+               <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest opacity-60">Description de la mission</p>
             </div>
             <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-3xl" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
           </div>
@@ -532,5 +571,13 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;  
   overflow: hidden;
+}
+
+/* Kanban specific styles */
+.cursor-grab {
+  cursor: grab;
+}
+.cursor-grabbing {
+  cursor: grabbing;
 }
 </style>

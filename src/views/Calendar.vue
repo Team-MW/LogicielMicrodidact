@@ -11,8 +11,7 @@ import {
   ChevronLeft, 
   ChevronRight,
   User,
-  X,
-  Calendar
+  X
 } from 'lucide-vue-next'
 
 interface CalendarTask {

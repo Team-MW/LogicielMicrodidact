@@ -29,7 +29,8 @@ interface CalendarTask {
   is_completed: boolean
 }
 
-const tasks = ref<CalendarTask[]>([])
+const calendarTasks = ref<CalendarTask[]>([])
+const boardMissions = ref<CalendarTask[]>([])
 const isLoading = ref(true)
 const currentWeekStart = ref(new Date())
 const activeView = ref<'calendar' | 'board'>('calendar')
@@ -50,45 +51,7 @@ const priorityColors: Record<string, string> = {
   'Urgente': 'text-rose-600'
 }
 
-// Drag and Drop Logic
-const draggedTask = ref<CalendarTask | null>(null)
-
-const onDragStart = (task: CalendarTask) => {
-  draggedTask.value = task
-}
-
-const onDrop = async (newStatus: string) => {
-  if (!draggedTask.value || draggedTask.value.status === newStatus) return
-
-  const taskToUpdate = draggedTask.value
-  const oldStatus = taskToUpdate.status
-  
-  // Optimistic update
-  taskToUpdate.status = newStatus
-  taskToUpdate.is_completed = newStatus === 'Terminé'
-
-  const { error } = await supabase
-    .from('calendar_tasks')
-    .update({ 
-      status: newStatus, 
-      is_completed: newStatus === 'Terminé' 
-    })
-    .eq('id', taskToUpdate.id)
-
-  if (error) {
-    // Rollback
-    taskToUpdate.status = oldStatus
-    taskToUpdate.is_completed = oldStatus === 'Terminé'
-    alert('Erreur lors du déplacement de la tâche')
-  }
-  
-  draggedTask.value = null
-}
-
-const onDragOver = (event: DragEvent) => {
-  event.preventDefault()
-}
-
+// Helpers
 const parseTextWithLinks = (text: string) => {
   if (!text) return ''
   const escaped = text
@@ -105,45 +68,11 @@ const parseTextWithLinks = (text: string) => {
   })
 }
 
-// Set to Monday of the current week
 const setWeekToMonday = (date: Date) => {
   const d = new Date(date)
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   return new Date(d.setDate(diff))
-}
-
-onMounted(() => {
-  currentWeekStart.value = setWeekToMonday(new Date())
-  fetchTasks()
-})
-
-const fetchTasks = async () => {
-  isLoading.value = true
-  const { data, error } = await supabase
-    .from('calendar_tasks')
-    .select('*')
-    .order('created_at', { ascending: true })
-  
-  if (data && !error) {
-    tasks.value = data
-  }
-  isLoading.value = false
-}
-
-const weekDays = computed(() => {
-  const days = []
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(currentWeekStart.value)
-    day.setDate(day.getDate() + i)
-    days.push(day)
-  }
-  return days
-})
-
-const getTasksForDay = (date: Date) => {
-  const dateStr = date.toISOString().split('T')[0]
-  return tasks.value.filter(t => t.task_date === dateStr)
 }
 
 const formatDate = (date: Date) => {
@@ -162,7 +91,57 @@ const prevWeek = () => {
   currentWeekStart.value = d
 }
 
-// Add Task State
+// Fetching Logic
+const fetchData = async () => {
+  isLoading.value = true
+  const { data: cData } = await supabase.from('calendar_tasks').select('*').order('created_at', { ascending: true })
+  if (cData) calendarTasks.value = cData
+  const { data: mData } = await supabase.from('missions').select('*').order('created_at', { ascending: true })
+  if (mData) boardMissions.value = mData
+  isLoading.value = false
+}
+
+onMounted(() => {
+  currentWeekStart.value = setWeekToMonday(new Date())
+  fetchData()
+})
+
+const weekDays = computed(() => {
+  const days = []
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(currentWeekStart.value)
+    day.setDate(day.getDate() + i)
+    days.push(day)
+  }
+  return days
+})
+
+const getTasksForDay = (date: Date) => {
+  const dateStr = date.toISOString().split('T')[0]
+  return calendarTasks.value.filter(t => t.task_date === dateStr)
+}
+
+// Drag and Drop (Missions ONLY)
+const draggedTask = ref<CalendarTask | null>(null)
+const onDragStart = (task: CalendarTask) => { draggedTask.value = task }
+
+const onDrop = async (newStatus: string) => {
+  if (!draggedTask.value || draggedTask.value.status === newStatus) return
+  const taskToUpdate = draggedTask.value
+  const oldStatus = taskToUpdate.status
+  taskToUpdate.status = newStatus
+  taskToUpdate.is_completed = newStatus === 'Terminé'
+  const { error } = await supabase.from('missions').update({ status: newStatus, is_completed: newStatus === 'Terminé' }).eq('id', taskToUpdate.id)
+  if (error) {
+    taskToUpdate.status = oldStatus
+    taskToUpdate.is_completed = oldStatus === 'Terminé'
+  }
+  draggedTask.value = null
+}
+
+const onDragOver = (event: DragEvent) => { event.preventDefault() }
+
+// Modals State
 const showAddModal = ref(false)
 const selectedDate = ref('')
 const newTask = ref({
@@ -175,45 +154,35 @@ const newTask = ref({
 
 const openAddModal = (date: Date, initialStatus?: string) => {
   selectedDate.value = date.toISOString().split('T')[0]
-  if (initialStatus) {
-    newTask.value.status = initialStatus
-  } else {
-    newTask.value.status = 'A faire'
-  }
+  newTask.value.status = initialStatus || 'A faire'
   showAddModal.value = true
 }
 
 const addTask = async () => {
   if (!newTask.value.intern_name || !newTask.value.task_description) return
-
-  const { data, error } = await supabase
-    .from('calendar_tasks')
-    .insert({
-      intern_name: newTask.value.intern_name,
-      task_description: newTask.value.task_description,
-      project_link: newTask.value.project_link,
-      status: newTask.value.status,
-      priority: newTask.value.priority,
-      task_date: selectedDate.value,
-      is_completed: newTask.value.status === 'Terminé'
-    })
-    .select()
-    .single()
+  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
+  const { data, error } = await supabase.from(table).insert({
+    intern_name: newTask.value.intern_name,
+    task_description: newTask.value.task_description,
+    project_link: newTask.value.project_link,
+    status: newTask.value.status,
+    priority: newTask.value.priority,
+    task_date: selectedDate.value,
+    is_completed: newTask.value.status === 'Terminé'
+  }).select().single()
 
   if (data && !error) {
-    tasks.value.push(data)
+    if (table === 'calendar_tasks') calendarTasks.value.push(data)
+    else boardMissions.value.push(data)
     newTask.value = { intern_name: '', task_description: '', project_link: '', status: 'A faire', priority: 'Normale' }
     showAddModal.value = false
   }
 }
 
 const updateTaskStatus = async (task: CalendarTask, newStatus: string) => {
+  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
   const isCompleted = newStatus === 'Terminé'
-  const { error } = await supabase
-    .from('calendar_tasks')
-    .update({ status: newStatus, is_completed: isCompleted })
-    .eq('id', task.id)
-
+  const { error } = await supabase.from(table).update({ status: newStatus, is_completed: isCompleted }).eq('id', task.id)
   if (!error) {
     task.status = newStatus
     task.is_completed = isCompleted
@@ -221,15 +190,12 @@ const updateTaskStatus = async (task: CalendarTask, newStatus: string) => {
 }
 
 const deleteTask = async (id: number) => {
-  if (!confirm('Supprimer cette tâche ?')) return
-  
-  const { error } = await supabase
-    .from('calendar_tasks')
-    .delete()
-    .eq('id', id)
-
+  if (!confirm('Supprimer cet élément ?')) return
+  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
+  const { error } = await supabase.from(table).delete().eq('id', id)
   if (!error) {
-    tasks.value = tasks.value.filter(t => t.id !== id)
+    if (table === 'calendar_tasks') calendarTasks.value = calendarTasks.value.filter(t => t.id !== id)
+    else boardMissions.value = boardMissions.value.filter(t => t.id !== id)
   }
 }
 
@@ -358,7 +324,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
               <div class="w-3 h-3 rounded-full shadow-sm" :class="(statusColors[status] || '').split(' ')[0]"></div>
               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-600">{{ status }}</h3>
               <span class="px-2 py-0.5 rounded-full bg-white text-[9px] font-black text-slate-400 shadow-xs">
-                {{ tasks.filter(t => t.status === status).length }}
+                {{ boardMissions.filter(t => t.status === status).length }}
               </span>
            </div>
            <button @click="openAddModal(new Date(), status)" class="text-slate-300 hover:text-slate-500 transition-colors">
@@ -367,7 +333,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
         </div>
 
         <div class="flex-1 space-y-3">
-          <div v-for="task in tasks.filter(t => t.status === status)" :key="task.id"
+          <div v-for="task in boardMissions.filter(t => t.status === status)" :key="task.id"
             draggable="true"
             @dragstart="onDragStart(task)"
             class="group p-5 bg-white border border-slate-100 rounded-2xl shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-grab active:cursor-grabbing relative overflow-hidden"
@@ -403,8 +369,8 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
             <div class="absolute top-0 left-0 w-1 h-full" :class="(statusColors[status] || '').split(' ')[0]"></div>
           </div>
           
-          <div v-if="tasks.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
-             <p class="text-[9px] font-black uppercase tracking-widest text-slate-400">Aucune tâche</p>
+          <div v-if="boardMissions.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
+             <p class="text-[9px] font-black uppercase tracking-widest text-slate-400">Aucune mission</p>
           </div>
 
           <Button 

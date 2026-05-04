@@ -140,6 +140,8 @@ const deleteTask = async (id: number) => {
     tasks.value = tasks.value.filter(t => t.id !== id)
   }
 }
+
+const selectedTaskForView = ref<CalendarTask | null>(null)
 </script>
 
 <template>
@@ -173,8 +175,9 @@ const deleteTask = async (id: number) => {
 
         <div class="flex-1 space-y-2 min-h-[200px]">
           <div v-for="task in getTasksForDay(day)" :key="task.id" 
-            class="group p-4 bg-white border border-slate-100 rounded-2xl shadow-xs hover:shadow-md transition-all duration-300 relative overflow-hidden"
+            class="group p-4 bg-white border border-slate-100 rounded-2xl shadow-xs hover:shadow-md transition-all duration-300 relative overflow-hidden cursor-pointer"
             :class="[task.is_completed ? 'opacity-60 bg-slate-50/50' : '']"
+            @click="selectedTaskForView = task"
           >
             <div class="flex items-start justify-between gap-2">
               <div class="space-y-2">
@@ -184,18 +187,18 @@ const deleteTask = async (id: number) => {
                   </div>
                   <span class="text-[10px] font-black text-indigo-600 uppercase tracking-tight">{{ task.intern_name }}</span>
                 </div>
-                <p class="text-xs font-bold text-slate-700 leading-relaxed" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
+                <p class="text-xs font-bold text-slate-700 leading-relaxed line-clamp-4" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
                   {{ task.task_description }}
                 </p>
               </div>
-              <button @click="toggleComplete(task)" class="shrink-0 transition-all active:scale-90">
+              <button @click.stop="toggleComplete(task)" class="shrink-0 transition-all active:scale-90">
                 <CheckCircle2 v-if="task.is_completed" class="h-5 w-5 text-emerald-500" />
                 <Circle v-else class="h-5 w-5 text-slate-200 hover:text-indigo-500" />
               </button>
             </div>
             
             <button 
-              @click="deleteTask(task.id)" 
+              @click.stop="deleteTask(task.id)" 
               class="absolute top-2 right-2 p-1.5 bg-rose-50 text-rose-500 rounded-xl border border-rose-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-100"
             >
               <Trash2 class="h-3.5 w-3.5" />
@@ -254,11 +257,52 @@ const deleteTask = async (id: number) => {
         </div>
       </div>
     </div>
+
+    <!-- Modal: Voir Tâche (En gros) -->
+    <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" @click="selectedTaskForView = null">
+      <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300" @click.stop>
+        <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div class="flex items-center gap-3">
+             <div class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+                <User class="h-5 w-5 text-indigo-500" />
+              </div>
+              <div>
+                <h3 class="text-xl font-black text-slate-900">{{ selectedTaskForView.intern_name }}</h3>
+                <p class="text-[10px] text-indigo-600 font-black uppercase tracking-widest">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
+              </div>
+          </div>
+          <button @click="selectedTaskForView = null" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div class="p-8 space-y-4 max-h-[60vh] overflow-y-auto">
+          <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap">
+            {{ selectedTaskForView.task_description }}
+          </p>
+        </div>
+
+        <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4 items-center">
+           <Badge :variant="selectedTaskForView.is_completed ? 'default' : 'outline'" class="rounded-full px-4 py-1.5 font-black text-[10px] uppercase tracking-widest" :class="selectedTaskForView.is_completed ? 'bg-emerald-500 hover:bg-emerald-600 border-none text-white' : 'border-slate-200 text-slate-400'">
+             {{ selectedTaskForView.is_completed ? 'Terminé' : 'En attente' }}
+           </Badge>
+           <div class="flex-1"></div>
+           <Button variant="ghost" class="h-10 rounded-xl font-black text-xs uppercase tracking-widest" @click="selectedTaskForView = null">Fermer</Button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .min-h-screen {
   min-height: calc(100vh - 4rem);
+}
+
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;  
+  overflow: hidden;
 }
 </style>

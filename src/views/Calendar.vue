@@ -11,7 +11,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   User,
-  X
+  X,
+  Link as LinkIcon
 } from 'lucide-vue-next'
 
 interface CalendarTask {
@@ -19,12 +20,29 @@ interface CalendarTask {
   intern_name: string
   task_description: string
   task_date: string
+  project_link?: string
   is_completed: boolean
 }
 
 const tasks = ref<CalendarTask[]>([])
 const isLoading = ref(true)
 const currentWeekStart = ref(new Date())
+
+const parseTextWithLinks = (text: string) => {
+  if (!text) return ''
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g
+  return escaped.replace(urlRegex, (url) => {
+    const href = url.startsWith('www') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all font-bold">${url}</a>`
+  })
+}
 
 // Set to Monday of the current week
 const setWeekToMonday = (date: Date) => {
@@ -88,7 +106,8 @@ const showAddModal = ref(false)
 const selectedDate = ref('')
 const newTask = ref({
   intern_name: '',
-  task_description: ''
+  task_description: '',
+  project_link: ''
 })
 
 const openAddModal = (date: Date) => {
@@ -104,6 +123,7 @@ const addTask = async () => {
     .insert({
       intern_name: newTask.value.intern_name,
       task_description: newTask.value.task_description,
+      project_link: newTask.value.project_link,
       task_date: selectedDate.value,
       is_completed: false
     })
@@ -112,7 +132,7 @@ const addTask = async () => {
 
   if (data && !error) {
     tasks.value.push(data)
-    newTask.value = { intern_name: '', task_description: '' }
+    newTask.value = { intern_name: '', task_description: '', project_link: '' }
     showAddModal.value = false
   }
 }
@@ -190,6 +210,10 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
                 <p class="text-xs font-bold text-slate-700 leading-relaxed line-clamp-4" :class="[task.is_completed ? 'line-through text-slate-400' : '']">
                   {{ task.task_description }}
                 </p>
+                <div v-if="task.project_link" class="flex items-center gap-1 mt-1">
+                   <LinkIcon class="h-3 w-3 text-indigo-400" />
+                   <span class="text-[9px] font-black text-indigo-500 uppercase tracking-tight">Projet lié</span>
+                </div>
               </div>
               <button @click.stop="toggleComplete(task)" class="shrink-0 transition-all active:scale-90">
                 <CheckCircle2 v-if="task.is_completed" class="h-5 w-5 text-emerald-500" />
@@ -233,7 +257,7 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           </button>
         </div>
 
-        <div class="p-8 space-y-6">
+        <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
           <div class="space-y-2">
             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nom du Stagiaire</label>
             <div class="relative">
@@ -241,6 +265,15 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
               <Input v-model="newTask.intern_name" placeholder="Ex: Jean Dupont" class="pl-11 h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
             </div>
           </div>
+          
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lien du projet (Optionnel)</label>
+            <div class="relative">
+              <LinkIcon class="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input v-model="newTask.project_link" placeholder="https://..." class="pl-11 h-12 rounded-2xl border-slate-200 focus-visible:ring-indigo-100 font-bold" />
+            </div>
+          </div>
+
           <div class="space-y-2">
             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mission à accomplir</label>
             <textarea 
@@ -276,10 +309,21 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
           </button>
         </div>
 
-        <div class="p-8 space-y-4 max-h-[60vh] overflow-y-auto">
-          <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {{ selectedTaskForView.task_description }}
-          </p>
+        <div class="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+          <div v-if="selectedTaskForView.project_link" class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50 flex items-center gap-3">
+             <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                <LinkIcon class="h-4 w-4 text-indigo-600" />
+             </div>
+             <div class="flex-1 min-w-0">
+               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Lien du Projet</p>
+               <p class="truncate" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
+             </div>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Détails de la mission</p>
+            <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
+          </div>
         </div>
 
         <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4 items-center">

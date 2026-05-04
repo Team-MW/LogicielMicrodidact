@@ -7,6 +7,7 @@ import Customers from '@/views/Customers.vue'
 import CustomerDetail from '@/views/CustomerDetail.vue'
 import CustomerTracking from '@/views/CustomerTracking.vue'
 import Installers from '@/views/Installers.vue'
+import Calendar from '@/views/Calendar.vue'
 import Login from '@/views/Login.vue'
 
 const router = createRouter({
@@ -46,6 +47,12 @@ const router = createRouter({
       path: '/software',
       name: 'software',
       component: SoftwareProjects,
+      meta: { layout: 'admin' }
+    },
+    {
+      path: '/calendar',
+      name: 'calendar',
+      component: Calendar,
       meta: { layout: 'admin' }
     },
     {

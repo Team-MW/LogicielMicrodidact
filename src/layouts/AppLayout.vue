@@ -16,7 +16,8 @@ import {
   Truck,
   Menu,
   X,
-  Monitor
+  Monitor,
+  Calendar
 } from 'lucide-vue-next'
 
 const isMobileMenuOpen = ref(false)
@@ -46,6 +47,7 @@ const navItems = [
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
   { name: 'Projets', icon: Briefcase, path: '/projects' },
   { name: 'Suivi Logiciels', icon: Monitor, path: '/software' },
+  { name: 'Planning Stagiaires', icon: Calendar, path: '/calendar' },
   { name: 'Suivi Poseurs', icon: Truck, path: '/installers' },
   { name: 'Clients', icon: Users, path: '/customers' },
   { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },

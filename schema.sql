@@ -96,6 +96,60 @@ ALTER TABLE installations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE installation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_tasks ENABLE ROW LEVEL SECURITY;
+
+-- 7. Table: Calendar Tasks (Planning Stagiaires)
+CREATE TABLE IF NOT EXISTS calendar_tasks (
+    id SERIAL PRIMARY KEY,
+    intern_name TEXT NOT NULL,
+    task_description TEXT NOT NULL,
+    task_date DATE NOT NULL,
+    is_completed BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Policies
+CREATE POLICY "Allow all read" ON projects FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON project_notes FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON software_projects FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON software_projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON software_projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON software_projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON software_project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON software_project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON software_project_notes FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON installations FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON installations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON installations FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON installations FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON installation_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON installation_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON installation_notes FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON customers FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON customers FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON customers FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON customers FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON transactions FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON transactions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON transactions FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON transactions FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON calendar_tasks FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON calendar_tasks FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON calendar_tasks FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON calendar_tasks FOR DELETE USING (true);
 
 -- Création de politiques de sécurité (Permissives pour le test initial)
 -- Note: À affiner en production en fonction de l'authentification utilisateur.

@@ -16,7 +16,6 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  FileText,
   List as ListIcon,
   Pencil
 } from 'lucide-vue-next'

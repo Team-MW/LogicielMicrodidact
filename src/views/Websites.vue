@@ -13,7 +13,6 @@ import {
   Users, 
   Clock, 
   ArrowUpRight,
-  Settings2,
   RefreshCw,
   Plus,
   Loader2,

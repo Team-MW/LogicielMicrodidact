@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Search, Plus, MessageSquare, Phone, Mail, Calendar, Loader2 } from 'lucide-vue-next'
+import { Search, Plus, MessageSquare, Phone, Mail, Calendar, Loader2, Pencil } from 'lucide-vue-next'
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,10 @@ const newEntry = ref({
   notes: '',
   agent: 'Admin User'
 })
+
+const editingEntry = ref<any>(null)
+const isEditingDialogVisible = ref(false)
+const isUpdating = ref(false)
 
 onMounted(async () => {
   trackingData.value = await api.getTracking()
@@ -83,6 +87,28 @@ const handleAddTracking = async () => {
   newEntry.value = { customerId: '', type: 'Appel', notes: '', agent: 'Admin User' }
   isAdding.value = false
   isDialogOpen.value = false
+}
+
+const openEditDialog = (entry: any) => {
+  editingEntry.value = { ...entry, customerId: entry.customerId.toString() }
+  isEditingDialogVisible.value = true
+}
+
+const handleUpdateTracking = async () => {
+  if (!editingEntry.value || !editingEntry.value.notes) return
+  
+  isUpdating.value = true
+  await api.updateTracking(editingEntry.value.id, {
+    customerId: parseInt(editingEntry.value.customerId),
+    type: editingEntry.value.type,
+    notes: editingEntry.value.notes,
+    agent: editingEntry.value.agent
+  })
+  
+  trackingData.value = await api.getTracking()
+  isUpdating.value = false
+  isEditingDialogVisible.value = false
+  editingEntry.value = null
 }
 </script>
 
@@ -143,6 +169,56 @@ const handleAddTracking = async () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog v-model:open="isEditingDialogVisible">
+        <DialogContent class="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Modifier le suivi</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations de cette interaction.
+            </DialogDescription>
+          </DialogHeader>
+          <div v-if="editingEntry" class="grid gap-4 py-4">
+            <div class="grid gap-2">
+              <Label>Client</Label>
+              <Select v-model="editingEntry.customerId">
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="c in customers" :key="c.id" :value="c.id.toString()">
+                    {{ c.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="grid gap-2">
+              <Label>Type d'interaction</Label>
+              <Select v-model="editingEntry.type">
+                <SelectTrigger>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Appel">Appel</SelectItem>
+                  <SelectItem value="Email">Email</SelectItem>
+                  <SelectItem value="Réunion">Réunion</SelectItem>
+                  <SelectItem value="Autre">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="grid gap-2">
+              <Label>Notes</Label>
+              <Textarea v-model="editingEntry.notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button :disabled="isUpdating || !editingEntry?.notes" @click="handleUpdateTracking">
+              <Loader2 v-if="isUpdating" class="mr-2 h-4 w-4 animate-spin" />
+              Mettre à jour
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
 
     <Card>
@@ -165,10 +241,11 @@ const handleAddTracking = async () => {
               <TableHead>Date</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Agent</TableHead>
+              <TableHead class="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="item in filteredTracking" :key="item.id">
+            <TableRow v-for="item in filteredTracking" :key="item.id" @click="openEditDialog(item)" class="cursor-pointer hover:bg-slate-50 transition-colors">
               <TableCell class="font-medium">
                 {{ getCustomerName(item.customerId) }}
               </TableCell>
@@ -194,6 +271,11 @@ const handleAddTracking = async () => {
                   </Avatar>
                   {{ item.agent }}
                 </div>
+              </TableCell>
+              <TableCell class="text-right">
+                <Button variant="ghost" size="icon" @click.stop="openEditDialog(item)" title="Modifier">
+                  <Pencil class="h-4 w-4 text-indigo-600" />
+                </Button>
               </TableCell>
             </TableRow>
             <TableRow v-if="filteredTracking.length === 0">

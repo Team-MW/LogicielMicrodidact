@@ -45,6 +45,26 @@ export const api = {
     return { success: true }
   },
 
+  updateWebsite: async (id: number, siteData: any) => {
+    store.updateWebsite(id, siteData)
+    return { success: true }
+  },
+
+  updateCustomer: async (id: number, customerData: any) => {
+    store.updateCustomer(id, customerData)
+    return { success: true }
+  },
+
+  updateTracking: async (id: number, trackingData: any) => {
+    store.updateTracking(id, trackingData)
+    return { success: true }
+  },
+
+  updateSubscription: async (id: number, subData: any) => {
+    store.updateSubscription(id, subData)
+    return { success: true }
+  },
+
   // Gestion des paiements
   getPayments: async () => {
     return store.payments

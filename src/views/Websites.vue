@@ -16,7 +16,8 @@ import {
   Settings2,
   RefreshCw,
   Plus,
-  Loader2
+  Loader2,
+  Pencil
 } from 'lucide-vue-next'
 import {
   Dialog,
@@ -49,6 +50,10 @@ const newSite = ref({
   url: '',
   customerId: ''
 })
+
+const editingSite = ref<any>(null)
+const isEditingDialogVisible = ref(false)
+const isUpdating = ref(false)
 
 onMounted(async () => {
   websites.value = await api.getWebsites()
@@ -102,6 +107,28 @@ const refreshStats = async () => {
   }))
   
   isRefreshing.value = false
+}
+
+const openEditDialog = (site: any) => {
+  editingSite.value = { ...site, customerId: site.customerId.toString() }
+  isEditingDialogVisible.value = true
+}
+
+const handleUpdateWebsite = async () => {
+  if (!editingSite.value || !editingSite.value.name || !editingSite.value.url) return
+  
+  isUpdating.value = true
+  await api.updateWebsite(editingSite.value.id, {
+    name: editingSite.value.name,
+    url: editingSite.value.url,
+    customerId: parseInt(editingSite.value.customerId),
+    status: editingSite.value.status
+  })
+  
+  websites.value = await api.getWebsites()
+  isUpdating.value = false
+  isEditingDialogVisible.value = false
+  editingSite.value = null
 }
 </script>
 
@@ -158,6 +185,59 @@ const refreshStats = async () => {
               <Button :disabled="isAdding || !newSite.name || !newSite.url || !newSite.customerId" @click="handleAddWebsite">
                 <Loader2 v-if="isAdding" class="mr-2 h-4 w-4 animate-spin" />
                 Enregistrer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog v-model:open="isEditingDialogVisible">
+          <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Modifier le site web</DialogTitle>
+              <DialogDescription>
+                Modifiez les informations du site internet.
+              </DialogDescription>
+            </DialogHeader>
+            <div v-if="editingSite" class="grid gap-4 py-4">
+              <div class="grid gap-2">
+                <Label>Nom du site</Label>
+                <Input v-model="editingSite.name" />
+              </div>
+              <div class="grid gap-2">
+                <Label>URL</Label>
+                <Input v-model="editingSite.url" />
+              </div>
+              <div class="grid gap-2">
+                <Label>Client Propriétaire</Label>
+                <Select v-model="editingSite.customerId">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="c in customers" :key="c.id" :value="c.id.toString()">
+                      {{ c.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="grid gap-2">
+                <Label>Statut</Label>
+                <Select v-model="editingSite.status">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="En ligne">En ligne</SelectItem>
+                    <SelectItem value="Maintenance">Maintenance</SelectItem>
+                    <SelectItem value="Hors ligne">Hors ligne</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button :disabled="isUpdating || !editingSite?.name || !editingSite?.url" @click="handleUpdateWebsite">
+                <Loader2 v-if="isUpdating" class="mr-2 h-4 w-4 animate-spin" />
+                Mettre à jour
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -247,8 +327,8 @@ const refreshStats = async () => {
             <Button variant="outline" class="w-full text-xs h-8">
               <BarChart3 class="mr-2 h-3 w-3" /> Report
             </Button>
-            <Button variant="ghost" size="icon" class="h-8 w-8">
-              <Settings2 class="h-4 w-4" />
+            <Button variant="ghost" size="icon" class="h-8 w-8 text-indigo-600 hover:bg-indigo-50" @click="openEditDialog(site)" title="Modifier">
+              <Pencil class="h-4 w-4" />
             </Button>
           </div>
         </CardContent>

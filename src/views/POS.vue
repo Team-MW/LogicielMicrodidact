@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { XCircle, CreditCard, ExternalLink, Link2, AlertCircle, RefreshCw } from 'lucide-vue-next'
+import { XCircle, CreditCard, ExternalLink, Link2, AlertCircle, RefreshCw, Pencil } from 'lucide-vue-next'
 
 const transactions = ref<any[]>([])
 const customers = ref<any[]>([])
@@ -18,6 +18,9 @@ const stripeClient = ref('')
 const stripeDesc = ref('')
 const generatedLink = ref('')
 const isLoading = ref(false)
+const editingTx = ref<any>(null)
+const isEditingDialogVisible = ref(false)
+const isUpdating = ref(false)
 
 const fetchTransactions = async () => {
   const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false })
@@ -80,6 +83,29 @@ const formatDate = (dateStr: string) => {
     minute: '2-digit'
   })
 }
+
+const openEditDialog = (tx: any) => {
+  editingTx.value = { ...tx }
+  isEditingDialogVisible.value = true
+}
+
+const handleUpdateTransaction = async () => {
+  if (!editingTx.value) return
+  
+  isUpdating.value = true
+  const { error } = await supabase.from('transactions').update({
+    amount: parseFloat(editingTx.value.amount),
+    status: editingTx.value.status,
+    payment_method: editingTx.value.payment_method
+  }).eq('id', editingTx.value.id)
+  
+  if (!error) {
+    fetchTransactions()
+    isEditingDialogVisible.value = false
+    editingTx.value = null
+  }
+  isUpdating.value = false
+}
 </script>
 
 <template>
@@ -108,6 +134,41 @@ const formatDate = (dateStr: string) => {
           <Link2 class="h-3.5 w-3.5" /> Liens Stripe
         </button>
       </div>
+
+      <Dialog v-model:open="isEditingDialogVisible">
+        <DialogContent class="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Modifier la transaction</DialogTitle>
+            <DialogDescription>
+              Modifiez les détails de la transaction.
+            </DialogDescription>
+          </DialogHeader>
+          <div v-if="editingTx" class="grid gap-4 py-4">
+            <div class="grid gap-2">
+              <Label>Montant (€)</Label>
+              <Input type="number" v-model="editingTx.amount" />
+            </div>
+            <div class="grid gap-2">
+              <Label>Méthode de paiement</Label>
+              <Input v-model="editingTx.payment_method" />
+            </div>
+            <div class="grid gap-2">
+              <Label>Statut</Label>
+              <select v-model="editingTx.status" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <option value="Refusé">Refusé</option>
+                <option value="Payé">Payé</option>
+                <option value="En attente">En attente</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button :disabled="isUpdating" @click="handleUpdateTransaction">
+              <RefreshCw v-if="isUpdating" class="mr-2 h-4 w-4 animate-spin" />
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
 
     <!-- 1. SECTION: PAIEMENTS REFUSES -->
@@ -130,21 +191,27 @@ const formatDate = (dateStr: string) => {
                 <TableHead class="text-slate-600 font-bold text-xs h-11">Client</TableHead>
                 <TableHead class="text-slate-600 font-bold text-xs h-11">Montant</TableHead>
                 <TableHead class="text-slate-600 font-bold text-xs h-11">Mode</TableHead>
-                <TableHead class="text-slate-600 font-bold text-xs h-11 text-right">Statut</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11">Statut</TableHead>
+                <TableHead class="text-slate-600 font-bold text-xs h-11 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="tx in refusedTransactions" :key="tx.id" class="border-slate-50 hover:bg-slate-50/50 transition-colors">
+              <TableRow v-for="tx in refusedTransactions" :key="tx.id" @click="openEditDialog(tx)" class="border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer">
                 <TableCell class="text-xs font-medium text-slate-500">{{ formatDate(tx.created_at) }}</TableCell>
                 <TableCell class="font-bold text-slate-800 text-sm">{{ getCustomerName(tx.customer_id) }}</TableCell>
                 <TableCell class="font-black text-slate-900 text-sm">{{ tx.amount }} €</TableCell>
                 <TableCell>
                   <Badge variant="secondary" class="text-[9px] uppercase font-bold px-2 py-0.5">{{ tx.payment_method || 'Inconnu' }}</Badge>
                 </TableCell>
-                <TableCell class="text-right">
+                <TableCell>
                   <Badge class="bg-rose-50 text-rose-600 border border-rose-200/50 text-[10px] font-bold rounded-lg px-2.5 py-1">
                     <XCircle class="h-3.5 w-3.5 mr-1" /> Refusé
                   </Badge>
+                </TableCell>
+                <TableCell class="text-right">
+                   <Button variant="ghost" size="icon" @click.stop="openEditDialog(tx)" title="Modifier">
+                    <Pencil class="h-4 w-4 text-indigo-600" />
+                  </Button>
                 </TableCell>
               </TableRow>
               <TableRow v-if="refusedTransactions.length === 0">

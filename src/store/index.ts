@@ -100,5 +100,33 @@ export const store = reactive({
   addSubscription(sub: any) {
     const newId = this.subscriptions.length > 0 ? Math.max(...this.subscriptions.map(s => s.id)) + 1 : 1
     this.subscriptions.push({ id: newId, status: 'Actif', ...sub })
+  },
+
+  updateCustomer(id: number, updates: any) {
+    const index = this.customers.findIndex(c => c.id === id)
+    if (index !== -1) {
+      this.customers[index] = { ...this.customers[index], ...updates }
+    }
+  },
+
+  updateTracking(id: number, updates: any) {
+    const index = this.tracking.findIndex(t => t.id === id)
+    if (index !== -1) {
+      this.tracking[index] = { ...this.tracking[index], ...updates }
+    }
+  },
+
+  updateWebsite(id: number, updates: any) {
+    const index = this.websites.findIndex(s => s.id === id)
+    if (index !== -1) {
+      this.websites[index] = { ...this.websites[index], ...updates }
+    }
+  },
+
+  updateSubscription(id: number, updates: any) {
+    const index = this.subscriptions.findIndex(s => s.id === id)
+    if (index !== -1) {
+      this.subscriptions[index] = { ...this.subscriptions[index], ...updates }
+    }
   }
 })

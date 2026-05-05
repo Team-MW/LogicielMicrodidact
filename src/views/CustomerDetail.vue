@@ -15,8 +15,20 @@ import {
   TrendingUp,  
   CheckCircle2,
   AlertCircle,  
-  Plus 
+  Plus,
+  Pencil,
+  Loader2
 } from 'lucide-vue-next'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { api } from '@/services/api'
 
 const route = useRoute()
@@ -50,6 +62,32 @@ const totalPaid = computed(() => {
     .reduce((acc, p) => acc + parseFloat(p.amount.replace(' €', '').replace(',', '.')), 0)
     .toLocaleString() + ' €'
 })
+
+const editingCustomer = ref<any>(null)
+const isEditingDialogVisible = ref(false)
+const isUpdating = ref(false)
+
+const openEditDialog = () => {
+  editingCustomer.value = { ...customer.value }
+  isEditingDialogVisible.value = true
+}
+
+const handleUpdateCustomer = async () => {
+  if (!editingCustomer.value || !editingCustomer.value.name || !editingCustomer.value.email) return
+  
+  isUpdating.value = true
+  await api.updateCustomer(editingCustomer.value.id, {
+    name: editingCustomer.value.name,
+    email: editingCustomer.value.email,
+    phone: editingCustomer.value.phone,
+    status: editingCustomer.value.status
+  })
+  
+  customer.value = { ...editingCustomer.value }
+  isUpdating.value = false
+  isEditingDialogVisible.value = false
+  editingCustomer.value = null
+}
 </script>
 
 <template>
@@ -69,10 +107,53 @@ const totalPaid = computed(() => {
         </div>
       </div>
       <div class="flex gap-2">
+        <Button variant="outline" @click="openEditDialog"><Pencil class="mr-2 h-4 w-4" /> Modifier Profil</Button>
         <Button variant="outline"><Mail class="mr-2 h-4 w-4" /> Message</Button>
         <Button><Plus class="mr-2 h-4 w-4" /> Créer Facture</Button>
       </div>
     </div>
+
+    <!-- Edit Customer Dialog -->
+    <Dialog v-model:open="isEditingDialogVisible">
+        <DialogContent class="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Modifier le client</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations du client ci-dessous.
+            </DialogDescription>
+          </DialogHeader>
+          <div v-if="editingCustomer" class="grid gap-4 py-4">
+            <div class="space-y-4">
+              <div class="grid grid-cols-4 items-center gap-4">
+                <Label for="edit-name" class="text-right">Nom</Label>
+                <Input id="edit-name" v-model="editingCustomer.name" class="col-span-3" />
+              </div>
+              <div class="grid grid-cols-4 items-center gap-4">
+                <Label for="edit-email" class="text-right">Email</Label>
+                <Input id="edit-email" v-model="editingCustomer.email" class="col-span-3" />
+              </div>
+              <div class="grid grid-cols-4 items-center gap-4">
+                <Label for="edit-phone" class="text-right">Téléphone</Label>
+                <Input id="edit-phone" v-model="editingCustomer.phone" class="col-span-3" />
+              </div>
+              <div class="grid grid-cols-4 items-center gap-4">
+                <Label for="edit-status" class="text-right">Statut</Label>
+                <select id="edit-status" v-model="editingCustomer.status" class="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  <option value="Actif">Actif</option>
+                  <option value="Inactif">Inactif</option>
+                  <option value="VIP">VIP</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" :disabled="isUpdating" @click="handleUpdateCustomer">
+              <Loader2 v-if="isUpdating" class="mr-2 h-4 w-4 animate-spin" />
+              Enregistrer les modifications
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     <!-- Quick Stats -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

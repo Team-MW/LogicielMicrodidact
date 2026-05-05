@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -33,13 +33,17 @@ const selectedProject = ref<Project | null>(null)
 const newNoteText = ref('')
 const searchQuery = ref('')
 
-const showAddModal = ref(false)
 const newProject = ref({
   name: '',
   client: '',
   deadline: '',
   priority: 'Moyenne'
 })
+
+const showAddModal = ref(false)
+
+const isEditing = ref(false)
+const editingProjectData = ref<any>(null)
 
 const fetchProjects = async () => {
   const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
@@ -174,6 +178,40 @@ const addProject = async () => {
     projects.value.unshift(data)
     newProject.value = { name: '', client: '', deadline: '', priority: 'Moyenne' }
     showAddModal.value = false
+  }
+}
+
+const startEditing = () => {
+  if (!selectedProject.value) return
+  editingProjectData.value = { ...selectedProject.value }
+  isEditing.value = true
+}
+
+const cancelEditing = () => {
+  isEditing.value = false
+  editingProjectData.value = null
+}
+
+const saveProjectUpdate = async () => {
+  if (!editingProjectData.value) return
+  
+  const { error } = await supabase.from('projects').update({
+    name: editingProjectData.value.name,
+    client: editingProjectData.value.client,
+    deadline: editingProjectData.value.deadline,
+    priority: editingProjectData.value.priority,
+    progress: editingProjectData.value.progress,
+    status: editingProjectData.value.status
+  }).eq('id', editingProjectData.value.id)
+  
+  if (!error) {
+    const index = projects.value.findIndex(p => p.id === editingProjectData.value.id)
+    if (index !== -1) {
+      projects.value[index] = { ...editingProjectData.value }
+      selectedProject.value = { ...editingProjectData.value }
+    }
+    isEditing.value = false
+    editingProjectData.value = null
   }
 }
 
@@ -313,10 +351,13 @@ const getStatusColor = (status: string) => {
             <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
           </div>
           <div class="flex items-center gap-1">
+            <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
+              <Pencil class="h-4 w-4" />
+            </button>
             <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
               <Trash2 class="h-5 w-5" />
             </button>
-            <button @click="selectedProject = null" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+            <button @click="selectedProject = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
               <X class="h-5 w-5" />
             </button>
           </div>
@@ -325,8 +366,55 @@ const getStatusColor = (status: string) => {
         <!-- Modal Content -->
         <div class="p-6 overflow-y-auto flex-1 space-y-6">
           
-          <!-- Info Grid -->
-          <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <!-- Edit Form -->
+          <div v-if="isEditing" class="space-y-4">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Nom du Projet</label>
+              <input v-model="editingProjectData.name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Client</label>
+              <input v-model="editingProjectData.client" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Date limite</label>
+                <input v-model="editingProjectData.deadline" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Priorité</label>
+                <select v-model="editingProjectData.priority" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Basse">Basse</option>
+                  <option value="Moyenne">Moyenne</option>
+                  <option value="Haute">Haute</option>
+                  <option value="Critique">Critique</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Statut</label>
+                <select v-model="editingProjectData.status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Planifié">Nouveau</option>
+                  <option value="En cours">En cours</option>
+                  <option value="Terminé">Terminé</option>
+                  <option value="Traité">Traité</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Progression (%)</label>
+                <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
+              <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
+            </div>
+          </div>
+
+          <!-- Info Grid (View Mode) -->
+          <div v-else class="space-y-6">
+            <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div class="space-y-1">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
               <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
@@ -402,6 +490,7 @@ const getStatusColor = (status: string) => {
 
       </div>
     </div>
+  </div>
 
     <!-- Modal: Nouveau Projet -->
     <div v-if="showAddModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showAddModal = false">

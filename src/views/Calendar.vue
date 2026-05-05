@@ -15,7 +15,10 @@ import {
   Flag,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  List as ListIcon,
+  Pencil
 } from 'lucide-vue-next'
 
 interface CalendarTask {
@@ -200,6 +203,41 @@ const deleteTask = async (id: number) => {
 }
 
 const selectedTaskForView = ref<CalendarTask | null>(null)
+const isEditingTask = ref(false)
+const editingTaskData = ref<any>(null)
+
+const startEditingTask = () => {
+  if (!selectedTaskForView.value) return
+  editingTaskData.value = { ...selectedTaskForView.value }
+  isEditingTask.value = true
+}
+
+const saveTaskUpdate = async () => {
+  if (!editingTaskData.value) return
+  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
+  
+  const { error } = await supabase.from(table).update({
+    intern_name: editingTaskData.value.intern_name,
+    task_description: editingTaskData.value.task_description,
+    project_link: editingTaskData.value.project_link,
+    status: editingTaskData.value.status,
+    priority: editingTaskData.value.priority,
+    is_completed: editingTaskData.value.status === 'Terminé'
+  }).eq('id', editingTaskData.value.id)
+  
+  if (!error) {
+    if (table === 'calendar_tasks') {
+      const idx = calendarTasks.value.findIndex(t => t.id === editingTaskData.value.id)
+      if (idx !== -1) calendarTasks.value[idx] = { ...editingTaskData.value, is_completed: editingTaskData.value.status === 'Terminé' }
+    } else {
+      const idx = boardMissions.value.findIndex(t => t.id === editingTaskData.value.id)
+      if (idx !== -1) boardMissions.value[idx] = { ...editingTaskData.value, is_completed: editingTaskData.value.status === 'Terminé' }
+    }
+    selectedTaskForView.value = { ...editingTaskData.value, is_completed: editingTaskData.value.status === 'Terminé' }
+    isEditingTask.value = false
+    editingTaskData.value = null
+  }
+}
 </script>
 
 <template>
@@ -461,8 +499,8 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
       </div>
     </div>
 
-    <!-- Modal: Voir Tâche (ClickUp Style) -->
-    <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click="selectedTaskForView = null">
+    <!-- Modal: Voir/Modifier Tâche (ClickUp Style) -->
+    <div v-if="selectedTaskForView" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click="selectedTaskForView = null; isEditingTask = false">
       <div class="bg-white rounded-t-[32px] sm:rounded-[32px] max-w-2xl w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom sm:zoom-in-95 duration-300 h-[90vh] sm:h-auto" @click.stop>
         <div class="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
           <div class="flex items-center gap-4">
@@ -478,63 +516,107 @@ const selectedTaskForView = ref<CalendarTask | null>(null)
               </div>
           </div>
           <div class="flex items-center gap-2">
-             <button @click="updateTaskStatus(selectedTaskForView, 'Terminé')" v-if="selectedTaskForView.status !== 'Terminé'" class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">
+             <button v-if="!isEditingTask" @click="startEditingTask" class="p-2 rounded-xl text-indigo-500 hover:bg-indigo-50 transition-all shadow-sm border border-transparent hover:border-indigo-100" title="Modifier">
+                <Pencil class="h-4 w-4" />
+             </button>
+             <button @click="updateTaskStatus(selectedTaskForView, 'Terminé')" v-if="selectedTaskForView.status !== 'Terminé' && !isEditingTask" class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">
                 <CheckCircle class="h-3.5 w-3.5" /> Terminer
              </button>
-             <button @click="selectedTaskForView = null" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
+             <button @click="selectedTaskForView = null; isEditingTask = false" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
                <X class="h-5 w-5" />
              </button>
           </div>
         </div>
 
         <div class="p-10 space-y-8 max-h-[60vh] overflow-y-auto">
-          <!-- Details Grid -->
-          <div class="grid grid-cols-3 gap-6 pb-6 border-b border-slate-50">
-             <div class="space-y-1">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Statut</p>
-               <div class="flex items-center gap-2">
-                 <div class="w-2 h-2 rounded-full" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[0]"></div>
-                 <span class="text-xs font-black uppercase tracking-tight" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[1]">{{ selectedTaskForView.status || 'A faire' }}</span>
-               </div>
-             </div>
-             <div class="space-y-1 text-center border-x border-slate-50 px-6">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Priorité</p>
-               <div class="flex items-center justify-center gap-2">
-                 <Flag class="h-3.5 w-3.5" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'" />
-                 <span class="text-xs font-black uppercase tracking-tight" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'">{{ selectedTaskForView.priority || 'Normale' }}</span>
-               </div>
-             </div>
-             <div class="space-y-1 text-right">
-               <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Création</p>
-               <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ new Date(selectedTaskForView.task_date).toLocaleDateString('fr-FR') }}</span>
-             </div>
-          </div>
-
-          <div v-if="selectedTaskForView.project_link" class="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50 flex items-center gap-4 group">
-             <div class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform">
-                <LinkIcon class="h-5 w-5 text-indigo-600" />
-             </div>
-             <div class="flex-1 min-w-0">
-               <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 opacity-60">Lien du Projet</p>
-               <p class="truncate text-sm font-bold" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
-             </div>
-          </div>
-
-          <div class="space-y-4">
-            <div class="flex items-center gap-2">
-               <div class="w-1 h-6 bg-indigo-600 rounded-full"></div>
-               <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest opacity-60">Description de la mission</p>
+          <!-- Edit Mode Content -->
+          <div v-if="isEditingTask" class="space-y-6">
+            <div class="grid grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigné</label>
+                <Input v-model="editingTaskData.intern_name" class="h-12 rounded-2xl border-slate-200" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Priorité</label>
+                <select v-model="editingTaskData.priority" class="w-full h-12 px-4 rounded-2xl border border-slate-200 text-sm font-bold">
+                  <option value="Basse">Basse</option>
+                  <option value="Normale">Normale</option>
+                  <option value="Haute">Haute</option>
+                  <option value="Urgente">Urgente</option>
+                </select>
+              </div>
             </div>
-            <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-3xl" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
+            <div class="grid grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Statut</label>
+                <select v-model="editingTaskData.status" class="w-full h-12 px-4 rounded-2xl border border-slate-200 text-sm font-bold">
+                  <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lien Projet</label>
+                <Input v-model="editingTaskData.project_link" class="h-12 rounded-2xl border-slate-200" />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
+              <textarea v-model="editingTaskData.task_description" class="w-full min-h-[150px] p-4 rounded-2xl border border-slate-200 text-sm font-bold focus:border-indigo-500 outline-none"></textarea>
+            </div>
+          </div>
+
+          <!-- View Mode Content -->
+          <div v-else class="space-y-8">
+            <!-- Details Grid -->
+            <div class="grid grid-cols-3 gap-6 pb-6 border-b border-slate-50">
+               <div class="space-y-1">
+                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Statut</p>
+                 <div class="flex items-center gap-2">
+                   <div class="w-2 h-2 rounded-full" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[0]"></div>
+                   <span class="text-xs font-black uppercase tracking-tight" :class="(statusColors[selectedTaskForView.status] || 'bg-slate-100 text-slate-500').split(' ')[1]">{{ selectedTaskForView.status || 'A faire' }}</span>
+                 </div>
+               </div>
+               <div class="space-y-1 text-center border-x border-slate-50 px-6">
+                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Priorité</p>
+                 <div class="flex items-center justify-center gap-2">
+                   <Flag class="h-3.5 w-3.5" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'" />
+                   <span class="text-xs font-black uppercase tracking-tight" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'">{{ selectedTaskForView.priority || 'Normale' }}</span>
+                 </div>
+               </div>
+               <div class="space-y-1 text-right">
+                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Création</p>
+                 <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ new Date(selectedTaskForView.task_date).toLocaleDateString('fr-FR') }}</span>
+               </div>
+            </div>
+
+            <div v-if="selectedTaskForView.project_link" class="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50 flex items-center gap-4 group">
+               <div class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover:rotate-12 transition-transform">
+                  <LinkIcon class="h-5 w-5 text-indigo-600" />
+               </div>
+               <div class="flex-1 min-w-0">
+                 <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 opacity-60">Lien du Projet</p>
+                 <p class="truncate text-sm font-bold" v-html="parseTextWithLinks(selectedTaskForView.project_link)"></p>
+               </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center gap-2">
+                 <div class="w-1 h-6 bg-indigo-600 rounded-full"></div>
+                 <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest opacity-60">Description de la mission</p>
+              </div>
+              <p class="text-base font-bold text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-3xl" v-html="parseTextWithLinks(selectedTaskForView.task_description)"></p>
+            </div>
           </div>
         </div>
 
         <div class="p-8 bg-slate-50/30 border-t border-slate-100 flex gap-4 items-center">
-           <button @click="deleteTask(selectedTaskForView.id); selectedTaskForView = null" class="text-rose-500 hover:text-rose-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-rose-50 rounded-xl transition-all">
+           <button v-if="!isEditingTask" @click="deleteTask(selectedTaskForView.id); selectedTaskForView = null" class="text-rose-500 hover:text-rose-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-rose-50 rounded-xl transition-all">
               <Trash2 class="h-4 w-4" /> Supprimer
            </button>
            <div class="flex-1"></div>
-           <Button variant="ghost" class="h-12 px-8 rounded-2xl font-black text-xs uppercase tracking-widest" @click="selectedTaskForView = null">Fermer</Button>
+           <Button v-if="isEditingTask" class="h-12 px-8 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-xs uppercase tracking-widest" @click="saveTaskUpdate">Enregistrer</Button>
+           <Button variant="ghost" class="h-12 px-8 rounded-2xl font-black text-xs uppercase tracking-widest" @click="selectedTaskForView = null; isEditingTask = false">
+             {{ isEditingTask ? 'Annuler' : 'Fermer' }}
+           </Button>
         </div>
       </div>
     </div>

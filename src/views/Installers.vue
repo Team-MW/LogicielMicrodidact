@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus, Trash2 } from 'lucide-vue-next'
+import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus, Trash2, Pencil } from 'lucide-vue-next'
 
 interface Installation {
   id: number
@@ -40,6 +40,9 @@ const newInst = ref({
   deadline: '',
   priority: 'Moyenne'
 })
+
+const isEditing = ref(false)
+const editingInstData = ref<any>(null)
 
 const poseurs = ['Karim', 'Thomas', 'Sofiane', 'Équipe A', 'Équipe B']
 
@@ -179,6 +182,41 @@ const addInstallation = async () => {
   }
 }
 
+const startEditing = () => {
+  if (!selectedInst.value) return
+  editingInstData.value = { ...selectedInst.value }
+  isEditing.value = true
+}
+
+const cancelEditing = () => {
+  isEditing.value = false
+  editingInstData.value = null
+}
+
+const saveInstUpdate = async () => {
+  if (!editingInstData.value) return
+  
+  const { error } = await supabase.from('installations').update({
+    client: editingInstData.value.client,
+    address: editingInstData.value.address,
+    sign_type: editingInstData.value.signType,
+    status: editingInstData.value.status,
+    poseur: editingInstData.value.poseur,
+    deadline: editingInstData.value.deadline,
+    priority: editingInstData.value.priority
+  }).eq('id', editingInstData.value.id)
+  
+  if (!error) {
+    const index = installations.value.findIndex(i => i.id === editingInstData.value.id)
+    if (index !== -1) {
+      installations.value[index] = { ...editingInstData.value }
+      selectedInst.value = { ...editingInstData.value }
+    }
+    isEditing.value = false
+    editingInstData.value = null
+  }
+}
+
 
 
 const getStatusColor = (status: string) => {
@@ -302,16 +340,73 @@ const getStatusColor = (status: string) => {
             <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedInst.client }}</h3>
             <p class="text-slate-500 text-sm font-medium">{{ selectedInst.signType }}</p>
           </div>
-          <button @click="selectedInst = null" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-            <X class="h-5 w-5" />
-          </button>
+          <div class="flex items-center gap-1">
+            <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier">
+              <Pencil class="h-4 w-4" />
+            </button>
+            <button @click="selectedInst = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+              <X class="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <!-- Modal Content -->
         <div class="p-6 overflow-y-auto flex-1 space-y-6">
           
-          <!-- Info Grid -->
-          <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <!-- Edit Form -->
+          <div v-if="isEditing" class="space-y-4">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Client</label>
+              <input v-model="editingInstData.client" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Adresse</label>
+              <input v-model="editingInstData.address" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Type d'Enseigne</label>
+              <input v-model="editingInstData.signType" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Date limite</label>
+                <input v-model="editingInstData.deadline" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Poseur</label>
+                <select v-model="editingInstData.poseur" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option v-for="p in poseurs" :key="p" :value="p">{{ p }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Statut</label>
+                <select v-model="editingInstData.status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="À planifier">À planifier</option>
+                  <option value="En cours">En cours</option>
+                  <option value="Terminé">Terminé</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Priorité</label>
+                <select v-model="editingInstData.priority" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Basse">Basse</option>
+                  <option value="Moyenne">Moyenne</option>
+                  <option value="Haute">Haute</option>
+                  <option value="Critique">Critique</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
+              <Button size="sm" @click="saveInstUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
+            </div>
+          </div>
+
+          <!-- Info Grid (View Mode) -->
+          <div v-else class="space-y-6">
+            <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div class="space-y-1">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date prévue</span>
               <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
@@ -379,9 +474,9 @@ const getStatusColor = (status: string) => {
           </div>
 
         </div>
-
       </div>
     </div>
+  </div>
 
     <!-- Modal: Nouvelle Pose -->
     <div v-if="showAddModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showAddModal = false">

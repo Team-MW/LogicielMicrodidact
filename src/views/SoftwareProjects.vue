@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -176,6 +176,42 @@ const addProject = async () => {
     showAddModal.value = false
   }
 }
+const isEditing = ref(false)
+const editingProjectData = ref<any>(null)
+
+const startEditing = () => {
+  if (!selectedProject.value) return
+  editingProjectData.value = { ...selectedProject.value }
+  isEditing.value = true
+}
+
+const cancelEditing = () => {
+  isEditing.value = false
+  editingProjectData.value = null
+}
+
+const saveProjectUpdate = async () => {
+  if (!editingProjectData.value) return
+  
+  const { error } = await supabase.from('software_projects').update({
+    name: editingProjectData.value.name,
+    client: editingProjectData.value.client,
+    status: editingProjectData.value.status,
+    progress: editingProjectData.value.progress,
+    deadline: editingProjectData.value.deadline,
+    priority: editingProjectData.value.priority
+  }).eq('id', editingProjectData.value.id)
+  
+  if (!error) {
+    const index = projects.value.findIndex(p => p.id === editingProjectData.value.id)
+    if (index !== -1) {
+      projects.value[index] = { ...editingProjectData.value }
+      selectedProject.value = { ...editingProjectData.value }
+    }
+    isEditing.value = false
+    editingProjectData.value = null
+  }
+}
 
 
 const getStatusColor = (status: string) => {
@@ -300,7 +336,7 @@ const getStatusColor = (status: string) => {
     </div>
 
     <!-- Modal: Project Details & Multiple Notes -->
-    <div v-if="selectedProject" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="selectedProject = null">
+    <div v-if="selectedProject" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="selectedProject = null; isEditing = false">
       <div class="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" @click.stop>
         
         <!-- Modal Header -->
@@ -313,10 +349,13 @@ const getStatusColor = (status: string) => {
             <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
           </div>
           <div class="flex items-center gap-1">
+            <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
+              <Pencil class="h-4 w-4" />
+            </button>
             <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
               <Trash2 class="h-5 w-5" />
             </button>
-            <button @click="selectedProject = null" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+            <button @click="selectedProject = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
               <X class="h-5 w-5" />
             </button>
           </div>
@@ -325,31 +364,79 @@ const getStatusColor = (status: string) => {
         <!-- Modal Content -->
         <div class="p-6 overflow-y-auto flex-1 space-y-6">
           
-          <!-- Info Grid -->
-          <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <!-- Edit Form -->
+          <div v-if="isEditing" class="space-y-4">
             <div class="space-y-1">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
-              <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
-              </div>
+              <label class="text-xs font-bold text-slate-700">Nom du Projet</label>
+              <input v-model="editingProjectData.name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
             </div>
             <div class="space-y-1">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
-              <div>
-                <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
-                  {{ selectedProject.priority }}
-                </Badge>
+              <label class="text-xs font-bold text-slate-700">Client</label>
+              <input v-model="editingProjectData.client" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Date limite</label>
+                <input v-model="editingProjectData.deadline" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
               </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Priorité</label>
+                <select v-model="editingProjectData.priority" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Basse">Basse</option>
+                  <option value="Moyenne">Moyenne</option>
+                  <option value="Haute">Haute</option>
+                  <option value="Critique">Critique</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Statut</label>
+                <select v-model="editingProjectData.status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Planifié">Nouveau</option>
+                  <option value="En cours">En cours</option>
+                  <option value="Terminé">Terminé</option>
+                  <option value="Traité">Traité</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Progression (%)</label>
+                <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
+              <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
             </div>
           </div>
 
-          <!-- Progression -->
-          <div class="space-y-2">
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-600 font-bold">Progression du projet</span>
-              <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+          <!-- Info Grid (View Mode) -->
+          <div v-else class="space-y-6">
+            <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
+                <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
+                </div>
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
+                <div>
+                  <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
+                    {{ selectedProject.priority }}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
+
+            <!-- Progression -->
+            <div class="space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-600 font-bold">Progression du projet</span>
+                <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+              </div>
+              <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
+            </div>
           </div>
 
           <!-- Notes Section -->

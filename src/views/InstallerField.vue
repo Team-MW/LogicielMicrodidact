@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { uploadToCloudinary } from '@/lib/cloudinary'
 
 interface Installation {
   id: number
@@ -38,8 +39,15 @@ const router = useRouter()
 const installations = ref<Installation[]>([])
 const loading = ref(true)
 const searchQuery = ref('')
+const successToast = ref('')
 
 const refreshInterval = ref<any>(null)
+const debugInfo = ref('')
+
+const showToast = (msg: string) => {
+  successToast.value = msg
+  setTimeout(() => { successToast.value = '' }, 3500)
+}
 
 // --- Nouveau Chantier States ---
 const showCreateModal = ref(false)
@@ -73,37 +81,38 @@ const logout = () => {
 
 const fetchInstallations = async () => {
   loading.value = true
-  let query = supabase.from('installations').select('*, projects(name)').order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('installations')
+    .select('*, projects(name)')
+    .order('created_at', { ascending: false })
   
-  const { data, error } = await query
-  if (data && !error) {
+  if (error) {
+    console.error('Supabase error:', error)
+    debugInfo.value = 'Erreur: ' + error.message
+  }
+  if (data) {
     installations.value = data
-    if (data.length > 0 && refreshInterval.value) {
-      clearInterval(refreshInterval.value)
-      refreshInterval.value = null
-    }
+    debugInfo.value = `${data.length} ligne(s) en base. Poseurs: ${[...new Set(data.map((d: any) => d.poseur))].join(', ') || 'aucun'}`
   }
   loading.value = false
 }
 
-const handleCreatePhotoUpload = (event: Event) => {
+const handleCreatePhotoUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement
-  if (!target.files) return
+  if (!target.files || target.files.length === 0) return
 
   createUploading.value = true
-  Array.from(target.files).forEach(file => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        newIntervention.value.photos.push(e.target.result as string)
-      }
-    }
-    reader.readAsDataURL(file)
-  })
-  
-  setTimeout(() => {
+  try {
+    const uploadPromises = Array.from(target.files).map(file => uploadToCloudinary(file))
+    const urls = await Promise.all(uploadPromises)
+    newIntervention.value.photos.push(...urls)
+  } catch (err) {
+    console.error('Cloudinary upload error:', err)
+    showToast('❌ Erreur lors de l\'upload. Vérifiez la connexion.')
+  } finally {
     createUploading.value = false
-  }, 1000)
+    target.value = ''
+  }
 }
 
 const removeCreatePhoto = (index: number) => {
@@ -112,7 +121,7 @@ const removeCreatePhoto = (index: number) => {
 
 const submitNewIntervention = async () => {
   if (!newIntervention.value.client.trim()) {
-    alert('Veuillez entrer le nom du client.')
+    showToast('⚠️ Veuillez entrer le nom du client.')
     return
   }
   
@@ -149,7 +158,6 @@ const submitNewIntervention = async () => {
       date: formattedDate
     })
 
-    alert('Intervention et rapport enregistrés avec succès !')
     showCreateModal.value = false
     
     // Reset form
@@ -164,11 +172,12 @@ const submitNewIntervention = async () => {
       notes: ''
     }
     
-    // Refresh installations list
+    // Refresh list then show toast
     await fetchInstallations()
+    showToast('✅ Chantier ajouté ! Il apparaît maintenant dans la liste.')
   } catch (error) {
     console.error('Error creating intervention:', error)
-    alert('Erreur lors de l\'creation de l\'intervention.')
+    showToast('❌ Erreur lors de la création. Réessayez.')
   } finally {
     savingNew.value = false
   }
@@ -178,14 +187,21 @@ onUnmounted(() => {
   if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
+// Stats - show all fetched installations
+const amarInstallations = computed(() => installations.value)
+const stats = computed(() => ({
+  total: amarInstallations.value.length,
+  done: amarInstallations.value.filter(i => i.status === 'Terminé').length,
+  inProgress: amarInstallations.value.filter(i => i.status === 'En cours').length,
+  todo: amarInstallations.value.filter(i => i.status === 'À planifier').length,
+}))
+
 const filteredInstallations = () => {
-  return installations.value.filter(inst => {
-    const matchesSearch = inst.client.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
-                         inst.address.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                         ((inst as any).projects?.name?.toLowerCase().includes(searchQuery.value.toLowerCase()))
-    const matchesPoseur = inst.poseur === 'Amar' // Filtered ONLY to Amar
-    return matchesSearch && matchesPoseur
-  })
+  if (!searchQuery.value) return installations.value
+  return installations.value.filter(inst =>
+    inst.client.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
+    inst.address.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
 }
 
 const getStatusIcon = (status: string) => {
@@ -206,17 +222,25 @@ const goToReport = (id: number) => {
 
 onMounted(() => {
   fetchInstallations()
-  
+  // Always auto-refresh every 10s so new assignments from admin appear too
   refreshInterval.value = setInterval(() => {
-    if (installations.value.length === 0) {
-      fetchInstallations()
-    }
-  }, 3000)
+    fetchInstallations()
+  }, 10000)
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-50 flex flex-col pb-20 relative">
+    <!-- Toast Banner -->
+    <transition name="slide-down">
+      <div 
+        v-if="successToast"
+        class="fixed top-4 left-4 right-4 z-[100] px-5 py-4 bg-slate-900 text-white text-sm font-bold rounded-2xl shadow-xl flex items-center gap-3"
+      >
+        <span class="flex-1">{{ successToast }}</span>
+      </div>
+    </transition>
+
     <!-- Header -->
     <header class="bg-white border-b px-6 py-6 sticky top-0 z-10">
       <div class="flex items-center justify-between mb-6">
@@ -257,19 +281,57 @@ onMounted(() => {
       </div>
     </header>
 
+    <!-- Amar's Personal Stats Dashboard -->
+    <div v-if="!loading && stats.total > 0" class="px-6 pt-4 pb-2 max-w-xl mx-auto w-full">
+      <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Mon Suivi</p>
+      <div class="grid grid-cols-4 gap-2">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 text-center">
+          <span class="text-2xl font-black text-slate-900">{{ stats.total }}</span>
+          <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Total</p>
+        </div>
+        <div class="bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-3 text-center">
+          <span class="text-2xl font-black text-emerald-600">{{ stats.done }}</span>
+          <p class="text-[8px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">Terminés</p>
+        </div>
+        <div class="bg-indigo-50 rounded-2xl border border-indigo-100 shadow-sm p-3 text-center">
+          <span class="text-2xl font-black text-indigo-600">{{ stats.inProgress }}</span>
+          <p class="text-[8px] font-black text-indigo-500 uppercase tracking-wider mt-0.5">En cours</p>
+        </div>
+        <div class="bg-amber-50 rounded-2xl border border-amber-100 shadow-sm p-3 text-center">
+          <span class="text-2xl font-black text-amber-600">{{ stats.todo }}</span>
+          <p class="text-[8px] font-black text-amber-500 uppercase tracking-wider mt-0.5">À faire</p>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div class="mt-3 bg-slate-100 rounded-full h-2 overflow-hidden">
+        <div 
+          class="h-full bg-emerald-500 rounded-full transition-all duration-700"
+          :style="{ width: stats.total > 0 ? (stats.done / stats.total * 100) + '%' : '0%' }"
+        ></div>
+      </div>
+      <p class="text-[9px] font-bold text-slate-400 mt-1 text-right">
+        {{ stats.total > 0 ? Math.round(stats.done / stats.total * 100) : 0 }}% terminés
+      </p>
+    </div>
+
     <!-- Content -->
-    <main class="flex-1 px-6 py-6 space-y-4 max-w-xl mx-auto w-full">
+    <main class="flex-1 px-6 py-4 space-y-4 max-w-xl mx-auto w-full">
+
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 space-y-4">
         <div class="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
         <p class="text-slate-400 font-medium animate-pulse">Chargement de mes chantiers...</p>
       </div>
 
-      <div v-else-if="filteredInstallations().length === 0" class="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-          <Search class="w-8 h-8 text-slate-300" />
+      <div v-else-if="filteredInstallations().length === 0" class="flex flex-col items-center justify-center py-16 text-center space-y-5 px-4">
+        <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center">
+          <Truck class="w-10 h-10 text-indigo-300" />
         </div>
-        <div>
-          <p class="text-slate-500 font-bold uppercase text-xs">Aucun chantier en cours</p>
+        <div class="space-y-2">
+          <p class="text-slate-700 font-black text-base">Aucun chantier assigné</p>
+          <p class="text-slate-400 text-xs font-medium leading-relaxed max-w-xs">
+            Tes chantiers s'afficheront ici.<br/>
+            Tu peux aussi en créer un directement avec le bouton <strong class="text-indigo-600">+ Nouveau Chantier</strong> ci-dessus.
+          </p>
         </div>
         <button 
           @click="fetchInstallations"
@@ -530,5 +592,16 @@ onMounted(() => {
 }
 .animate-bounce-subtle {
   animation: bounce-subtle 2s infinite ease-in-out;
+}
+
+/* Toast slide-down transition */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 </style>

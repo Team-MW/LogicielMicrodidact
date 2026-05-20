@@ -12,6 +12,7 @@ import {
   Clock,
   MapPin
 } from 'lucide-vue-next'
+import { uploadToCloudinary } from '@/lib/cloudinary'
 
 const route = useRoute()
 const router = useRouter()
@@ -47,24 +48,23 @@ const fetchInstallation = async () => {
   loading.value = false
 }
 
-const handlePhotoUpload = (event: Event) => {
+const handlePhotoUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement
-  if (!target.files) return
+  if (!target.files || target.files.length === 0) return
 
   uploading.value = true
-  Array.from(target.files).forEach(file => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        photos.value.push(e.target.result as string)
-      }
-    }
-    reader.readAsDataURL(file)
-  })
-  
-  setTimeout(() => {
+  try {
+    const uploadPromises = Array.from(target.files).map(file => uploadToCloudinary(file))
+    const urls = await Promise.all(uploadPromises)
+    photos.value.push(...urls)
+  } catch (err) {
+    console.error('Cloudinary upload error:', err)
+    alert('Erreur lors de l\'upload des photos. Vérifiez la connexion.')
+  } finally {
     uploading.value = false
-  }, 1000)
+    // Reset input so the same file can be picked again
+    target.value = ''
+  }
 }
 
 const removePhoto = (index: number) => {
@@ -80,18 +80,18 @@ const submitReport = async () => {
   saving.value = true
   
   try {
-    // 1. Update Status in database
+    // 1. Update Status
     await supabase.from('installations').update({ status: status.value }).eq('id', instId)
     
-    // 2. Add Note/Report formatted as JSON for rich rendering
+    // 2. Build report with Cloudinary URLs (already stored in photos[])
     const now = new Date()
     const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
     
     const reportData = {
       isReport: true,
-      hours: `${startTime.value} - ${endTime.value}`, // Saved clean as "08:00 - 17:00"
+      hours: `${startTime.value} - ${endTime.value}`,
       text: reportText.value.trim(),
-      photos: photos.value
+      photos: photos.value // Cloudinary URLs
     }
 
     const { error } = await supabase.from('installation_notes').insert({
@@ -101,7 +101,6 @@ const submitReport = async () => {
     })
 
     if (!error) {
-      alert('Rapport de chantier enregistré avec succès !')
       router.push('/installer')
     } else {
       throw error

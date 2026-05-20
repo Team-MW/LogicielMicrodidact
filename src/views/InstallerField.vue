@@ -40,6 +40,7 @@ const installations = ref<Installation[]>([])
 const loading = ref(true)
 const searchQuery = ref('')
 const successToast = ref('')
+const fetchError = ref('')
 
 const refreshInterval = ref<any>(null)
 const debugInfo = ref('')
@@ -81,18 +82,25 @@ const logout = () => {
 
 const fetchInstallations = async () => {
   loading.value = true
-  const { data, error } = await supabase
-    .from('installations')
-    .select('*, projects(name)')
-    .order('created_at', { ascending: false })
-  
-  if (error) {
-    console.error('Supabase error:', error)
-    debugInfo.value = 'Erreur: ' + error.message
-  }
-  if (data) {
-    installations.value = data
-    debugInfo.value = `${data.length} ligne(s) en base. Poseurs: ${[...new Set(data.map((d: any) => d.poseur))].join(', ') || 'aucun'}`
+  fetchError.value = ''
+  try {
+    const { data, error } = await supabase
+      .from('installations')
+      .select('*, projects(name)')
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      console.error('Supabase error:', error)
+      fetchError.value = error.message || 'Erreur de connexion à la base de données.'
+      debugInfo.value = 'Erreur: ' + error.message
+    } else if (data) {
+      installations.value = data
+      fetchError.value = ''
+      debugInfo.value = `${data.length} ligne(s) en base.`
+    }
+  } catch (e: any) {
+    console.error('Fetch exception:', e)
+    fetchError.value = 'Impossible de contacter la base de données.'
   }
   loading.value = false
 }
@@ -282,7 +290,7 @@ onMounted(() => {
     </header>
 
     <!-- Amar's Personal Stats Dashboard -->
-    <div v-if="!loading && stats.total > 0" class="px-6 pt-4 pb-2 max-w-xl mx-auto w-full">
+    <div v-if="!loading" class="px-6 pt-4 pb-2 max-w-xl mx-auto w-full">
       <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Mon Suivi</p>
       <div class="grid grid-cols-4 gap-2">
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 text-center">
@@ -328,7 +336,12 @@ onMounted(() => {
         </div>
         <div class="space-y-2">
           <p class="text-slate-700 font-black text-base">Aucun chantier assigné</p>
-          <p class="text-slate-400 text-xs font-medium leading-relaxed max-w-xs">
+          <!-- Error message if Supabase failed -->
+          <div v-if="fetchError" class="mt-2 px-4 py-3 bg-rose-50 border border-rose-100 rounded-2xl max-w-xs mx-auto">
+            <p class="text-rose-600 text-xs font-bold">⚠️ Erreur base de données</p>
+            <p class="text-rose-500 text-[10px] font-medium mt-0.5 break-all">{{ fetchError }}</p>
+          </div>
+          <p v-else class="text-slate-400 text-xs font-medium leading-relaxed max-w-xs">
             Tes chantiers s'afficheront ici.<br/>
             Tu peux aussi en créer un directement avec le bouton <strong class="text-indigo-600">+ Nouveau Chantier</strong> ci-dessus.
           </p>

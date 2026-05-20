@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Lock, ArrowRight, ShieldCheck, User, Users } from 'lucide-vue-next'
+import { Lock, ArrowRight, ShieldCheck } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
@@ -10,7 +10,7 @@ const route = useRoute()
 const router = useRouter()
 const code = ref('')
 const error = ref(false)
-const activeTab = ref<'admin' | 'poseur'>('admin')
+
 
 const verifyCode = () => {
   const isAllZeros = code.value.length > 0 && /^0+$/.test(code.value)
@@ -48,48 +48,20 @@ const verifyCode = () => {
         <CardDescription class="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Logiciel MicroDidact</CardDescription>
       </CardHeader>
 
-      <!-- Segmented Tab Toggle -->
-      <div class="px-6">
-        <div class="flex p-1 bg-slate-100 rounded-2xl">
-          <button 
-            @click="activeTab = 'admin'"
-            class="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black rounded-xl transition-all uppercase tracking-wider"
-            :class="[
-              activeTab === 'admin' 
-                ? 'bg-white text-slate-900 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-900'
-            ]"
-          >
-            <Users class="w-4 h-4" />
-            Espace Patron
-          </button>
-          <button 
-            @click="activeTab = 'poseur'"
-            class="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black rounded-xl transition-all uppercase tracking-wider"
-            :class="[
-              activeTab === 'poseur' 
-                ? 'bg-white text-slate-900 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-900'
-            ]"
-          >
-            <User class="w-4 h-4" />
-            Espace Amar
-          </button>
-        </div>
-      </div>
+
 
       <!-- Code Input -->
       <CardContent class="space-y-4 px-6 pb-6">
         <div class="space-y-1">
           <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block text-center mb-2">
-            {{ activeTab === 'admin' ? 'Entrez le code administrateur' : 'Entrez le code poseur' }}
+            Entrez votre code d'accès
           </label>
           <Input 
             v-model="code"
             type="password"
             inputmode="numeric"
             pattern="[0-9]*"
-            :placeholder="activeTab === 'admin' ? '••••' : '••••'"
+            placeholder="••••"
             maxlength="4"
             @keyup.enter="verifyCode"
             class="text-center tracking-[0.5em] text-xl font-bold py-6 bg-slate-50 border-slate-100 rounded-2xl focus-visible:ring-indigo-100 focus-visible:ring-2"

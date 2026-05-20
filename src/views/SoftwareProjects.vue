@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +32,7 @@ const activeFilter = ref('Tous')
 const selectedProject = ref<Project | null>(null)
 const newNoteText = ref('')
 const searchQuery = ref('')
+const refreshInterval = ref<any>(null)
 
 const showAddModal = ref(false)
 const newProject = ref({
@@ -45,6 +46,10 @@ const fetchProjects = async () => {
   const { data, error } = await supabase.from('software_projects').select('*').order('created_at', { ascending: false })
   if (data && !error) {
     projects.value = data
+    if (data.length > 0 && refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
   }
 }
 
@@ -79,6 +84,17 @@ const parseTextWithLinks = (text: string) => {
 onMounted(() => {
   fetchProjects()
   fetchNotes()
+
+  // Système de récupération automatique si pas de données (toutes les 3s)
+  refreshInterval.value = setInterval(() => {
+    if (projects.value.length === 0) {
+      fetchProjects()
+    }
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
 // Filtered Projects

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus, Trash2, Pencil } from 'lucide-vue-next'
+import { Calendar, Truck, FileText, X, Send, User, MapPin, Plus, Trash2, Pencil, Clock, CheckCircle2 } from 'lucide-vue-next'
 
 interface Installation {
   id: number
@@ -44,7 +44,25 @@ const newInst = ref({
 const isEditing = ref(false)
 const editingInstData = ref<any>(null)
 
-const poseurs = ['Karim', 'Thomas', 'Sofiane', 'Équipe A', 'Équipe B']
+const poseurs = ['Karim', 'Thomas', 'Sofiane', 'Amar', 'Équipe A', 'Équipe B']
+
+const zoomedPhoto = ref<string | null>(null)
+const openPhotoZoom = (photo: string) => {
+  zoomedPhoto.value = photo
+}
+
+const isReport = (text: string) => {
+  if (!text) return false
+  return text.trim().startsWith('{') && text.includes('"isReport":true')
+}
+
+const parseReport = (text: string) => {
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    return { text: text, hours: '', photos: [] }
+  }
+}
 
 const fetchInstallations = async () => {
   const { data, error } = await supabase.from('installations').select('*').order('created_at', { ascending: false })
@@ -288,10 +306,15 @@ const getStatusColor = (status: string) => {
           </div>
 
           <!-- Notes Preview -->
-          <div class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 font-medium truncate flex items-center gap-1">
+          <div class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 font-medium truncate flex items-center gap-1 w-full">
             <FileText class="h-3 w-3 text-slate-400 shrink-0" />
-            <span v-if="installationNotes[inst.id]?.length">
-              {{ installationNotes[inst.id][0].text }}
+            <span v-if="installationNotes[inst.id]?.length" class="truncate flex-1">
+              <span v-if="isReport(installationNotes[inst.id][0].text)" class="text-indigo-600 font-bold">
+                [RAPPORT] {{ parseReport(installationNotes[inst.id][0].text).text }}
+              </span>
+              <span v-else>
+                {{ installationNotes[inst.id][0].text }}
+              </span>
             </span>
             <span v-else class="text-slate-300 italic">Aucune note</span>
           </div>
@@ -447,11 +470,11 @@ const getStatusColor = (status: string) => {
             </div>
 
             <!-- Notes List -->
-            <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+            <div class="space-y-2 max-h-[350px] overflow-y-auto pr-1">
               <div v-for="(note, index) in installationNotes[selectedInst.id]" :key="note.id || index" 
                 class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1 relative group"
               >
-                <div class="flex justify-between items-center text-[10px]">
+                <div class="flex justify-between items-center text-[10px] mb-1.5">
                   <span class="font-bold text-slate-400">Note #{{ installationNotes[selectedInst.id].length - index }}</span>
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
@@ -464,7 +487,38 @@ const getStatusColor = (status: string) => {
                     </button>
                   </div>
                 </div>
-                <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap" v-html="parseTextWithLinks(note.text)"></p>
+
+                <div v-if="isReport(note.text)" class="space-y-3 pt-1">
+                  <!-- Badges for report -->
+                  <div class="flex flex-wrap gap-2 items-center">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-100 text-[10px] font-black text-emerald-700 uppercase tracking-wider">
+                      <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Rapport Poseur
+                    </span>
+                    <span v-if="parseReport(note.text).hours" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-100 text-[10px] font-black text-indigo-700 uppercase tracking-wider">
+                      <Clock class="w-3.5 h-3.5 text-indigo-600 shrink-0" /> {{ parseReport(note.text).hours }}
+                    </span>
+                  </div>
+
+                  <!-- Text -->
+                  <p class="text-sm text-slate-700 font-semibold whitespace-pre-wrap bg-white p-3 rounded-2xl border border-slate-100/80 shadow-2xs" v-html="parseTextWithLinks(parseReport(note.text).text)"></p>
+
+                  <!-- Gallery of Photos -->
+                  <div v-if="parseReport(note.text).photos?.length" class="space-y-1.5 pt-1">
+                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Photos du Chantier ({{ parseReport(note.text).photos.length }})</span>
+                    <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                      <div v-for="(photo, pIdx) in parseReport(note.text).photos" :key="pIdx" class="relative w-20 h-20 rounded-2xl overflow-hidden shadow-xs border border-slate-100 shrink-0 group/photo cursor-pointer" @click.stop="openPhotoZoom(photo)">
+                        <img :src="photo" class="w-full h-full object-cover group-hover/photo:scale-110 transition-transform duration-300" />
+                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center">
+                          <Plus class="w-5 h-5 text-white drop-shadow-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else>
+                  <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap" v-html="parseTextWithLinks(note.text)"></p>
+                </div>
               </div>
               
               <div v-if="!installationNotes[selectedInst.id]?.length" class="text-center py-6 text-slate-400 text-sm italic">
@@ -546,6 +600,16 @@ const getStatusColor = (status: string) => {
           <Button size="sm" @click="addInstallation" class="bg-indigo-600 hover:bg-indigo-500 text-white">Planifier</Button>
         </div>
 
+      </div>
+    </div>
+
+    <!-- Modal Zoom Photo -->
+    <div v-if="zoomedPhoto" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-4" @click="zoomedPhoto = null">
+      <div class="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center justify-center" @click.stop>
+        <button @click="zoomedPhoto = null" class="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-colors border border-white/10 shadow-lg">
+          <X class="w-6 h-6" />
+        </button>
+        <img :src="zoomedPhoto" class="max-w-full max-h-[80vh] rounded-3xl object-contain shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200" />
       </div>
     </div>
 

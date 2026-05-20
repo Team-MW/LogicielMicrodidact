@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,11 +21,16 @@ const isLoading = ref(false)
 const editingTx = ref<any>(null)
 const isEditingDialogVisible = ref(false)
 const isUpdating = ref(false)
+const refreshInterval = ref<any>(null)
 
 const fetchTransactions = async () => {
   const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false })
   if (data && !error) {
     transactions.value = data
+    if (data.length > 0 && refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
   }
 }
 
@@ -39,6 +44,17 @@ const fetchCustomers = async () => {
 onMounted(() => {
   fetchTransactions()
   fetchCustomers()
+
+  // Système de récupération automatique si pas de données (toutes les 3s)
+  refreshInterval.value = setInterval(() => {
+    if (transactions.value.length === 0) {
+      fetchTransactions()
+    }
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
 const getCustomerName = (customerId: any) => {

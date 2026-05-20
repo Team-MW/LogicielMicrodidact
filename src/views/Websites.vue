@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,6 +43,7 @@ const isAdding = ref(false)
 const isRefreshing = ref(false)
 const isDialogOpen = ref(false)
 const searchQuery = ref('')
+const refreshInterval = ref<any>(null)
 
 const newSite = ref({
   name: '',
@@ -55,10 +56,35 @@ const isEditingDialogVisible = ref(false)
 const isUpdating = ref(false)
 
 onMounted(async () => {
-  websites.value = await api.getWebsites()
-  customers.value = await api.getCustomers()
-  isLoading.value = false
+  await fetchData()
+  
+  // Système de récupération automatique si pas de données (toutes les 3s)
+  refreshInterval.value = setInterval(() => {
+    if (websites.value.length === 0) {
+      fetchData()
+    }
+  }, 3000)
 })
+
+onUnmounted(() => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
+})
+
+const fetchData = async () => {
+  isLoading.value = true
+  try {
+    websites.value = await api.getWebsites()
+    customers.value = await api.getCustomers()
+    if (websites.value.length > 0 && refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const getCustomerName = (id: number) => {
   const customer = customers.value.find(c => c.id === id)
@@ -333,9 +359,13 @@ const handleUpdateWebsite = async () => {
         </CardContent>
       </Card>
       
-      <div v-if="filteredWebsites.length === 0" class="col-span-full py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+      <div v-if="filteredWebsites.length === 0" class="col-span-full py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl flex flex-col items-center justify-center">
         <Globe class="mx-auto h-12 w-12 opacity-20 mb-4" />
-        <p>Aucun site web trouvé.</p>
+        <p class="mb-4">Aucun site web trouvé.</p>
+        <Button variant="outline" size="sm" @click="fetchData">
+          <RefreshCw class="mr-2 h-4 w-4" />
+          Réessayer de charger
+        </Button>
       </div>
     </div>
   </div>

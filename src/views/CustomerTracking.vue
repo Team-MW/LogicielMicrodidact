@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Search, Plus, MessageSquare, Phone, Mail, Calendar, Loader2, Pencil } from 'lucide-vue-next'
+import { Search, Plus, MessageSquare, Phone, Mail, Calendar, Loader2, Pencil, RefreshCw } from 'lucide-vue-next'
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,7 @@ const customers = ref<any[]>([])
 const searchQuery = ref('')
 const isAdding = ref(false)
 const isDialogOpen = ref(false)
+const refreshInterval = ref<any>(null)
 
 const newEntry = ref({
   customerId: '',
@@ -45,9 +46,35 @@ const isEditingDialogVisible = ref(false)
 const isUpdating = ref(false)
 
 onMounted(async () => {
-  trackingData.value = await api.getTracking()
-  customers.value = await api.getCustomers()
+  await fetchData()
+  refreshInterval.value = setInterval(() => {
+    if (trackingData.value.length === 0) {
+      fetchData()
+    }
+  }, 3000)
 })
+
+onUnmounted(() => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
+})
+
+const fetchData = async () => {
+  isLoading.value = true
+  try {
+    trackingData.value = await api.getTracking()
+    customers.value = await api.getCustomers()
+    if (trackingData.value.length > 0 && refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
+  } catch (error) {
+    console.error('Error fetching tracking data:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const isLoading = ref(false)
 
 const getCustomerName = (id: number) => {
   const customer = customers.value.find(c => c.id === id)
@@ -279,8 +306,15 @@ const handleUpdateTracking = async () => {
               </TableCell>
             </TableRow>
             <TableRow v-if="filteredTracking.length === 0">
-              <TableCell colspan="5" class="h-24 text-center text-muted-foreground">
-                Aucun suivi trouvé.
+              <TableCell colspan="6" class="h-48 text-center text-muted-foreground">
+                <div class="flex flex-col items-center justify-center space-y-4">
+                  <MessageSquare class="h-10 w-10 opacity-10" />
+                  <p>Aucun suivi trouvé.</p>
+                  <Button variant="outline" size="sm" @click="fetchData">
+                    <RefreshCw class="mr-2 h-4 w-4" />
+                    Actualiser les données
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>

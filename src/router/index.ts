@@ -9,6 +9,9 @@ import CustomerTracking from '@/views/CustomerTracking.vue'
 import Installers from '@/views/Installers.vue'
 import Calendar from '@/views/Calendar.vue'
 import Login from '@/views/Login.vue'
+import Domains from '@/views/Domains.vue'
+import InstallerField from '@/views/InstallerField.vue'
+import InstallerReport from '@/views/InstallerReport.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -62,6 +65,18 @@ const router = createRouter({
       meta: { layout: 'admin' }
     },
     {
+      path: '/installer',
+      name: 'installer-field',
+      component: InstallerField,
+      meta: { layout: 'empty' }
+    },
+    {
+      path: '/installer/report/:id',
+      name: 'installer-report',
+      component: InstallerReport,
+      meta: { layout: 'empty' }
+    },
+    {
       path: '/customers',
       name: 'customers',
       component: Customers,
@@ -78,6 +93,12 @@ const router = createRouter({
       name: 'tracking',
       component: CustomerTracking,
       meta: { layout: 'admin' }
+    },
+    {
+      path: '/domains',
+      name: 'domains',
+      component: Domains,
+      meta: { layout: 'admin' }
     }
   ]
 })
@@ -85,9 +106,13 @@ const router = createRouter({
 // Route Guard pour demander le code
 router.beforeEach((to, _from, next) => {
   const isAuthenticated = sessionStorage.getItem('md_auth') === 'true'
+  const role = sessionStorage.getItem('md_role') || 'admin'
   
   if (to.name !== 'login' && !isAuthenticated) {
-    next({ name: 'login' })
+    next({ name: 'login', query: { redirect: to.fullPath } })
+  } else if (isAuthenticated && role === 'poseur' && !to.path.startsWith('/installer') && to.name !== 'login') {
+    // Si connecté en tant que poseur mais essaie d'accéder à l'admin, rediriger vers l'espace poseur
+    next({ name: 'installer-field' })
   } else {
     next()
   }

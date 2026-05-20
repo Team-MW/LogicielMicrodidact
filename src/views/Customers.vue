@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Search, UserPlus, Mail, Phone, MoreHorizontal, Loader2, Globe, Pencil } from 'lucide-vue-next'
+import { Search, UserPlus, Mail, Phone, MoreHorizontal, Loader2, Globe, Pencil, RefreshCw } from 'lucide-vue-next'
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -30,6 +30,7 @@ const customers = ref<any[]>([])
 const websites = ref<any[]>([])
 const searchQuery = ref('')
 const isAdding = ref(false)
+const refreshInterval = ref<any>(null)
 const isDialogOpen = ref(false)
 
 const newCustomer = ref({
@@ -44,9 +45,35 @@ const editingCustomer = ref<any>(null)
 const isEditingDialogVisible = ref(false)
 
 onMounted(async () => {
-  customers.value = await api.getCustomers()
-  websites.value = await api.getWebsites()
+  await fetchData()
+  refreshInterval.value = setInterval(() => {
+    if (customers.value.length === 0) {
+      fetchData()
+    }
+  }, 3000)
 })
+
+const fetchData = async () => {
+  isLoading.value = true
+  try {
+    customers.value = await api.getCustomers()
+    websites.value = await api.getWebsites()
+    if (customers.value.length > 0 && refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
+  } catch (error) {
+    console.error('Error fetching customers:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
+})
+
+const isLoading = ref(false)
 
 const getCustomerWebsite = (customerId: number) => {
   return websites.value.find(s => s.customerId === customerId)
@@ -292,8 +319,15 @@ const handleUpdateCustomer = async () => {
               </TableCell>
             </TableRow>
             <TableRow v-if="filteredCustomers.length === 0">
-              <TableCell colspan="6" class="h-24 text-center text-muted-foreground">
-                Aucun client trouvé.
+              <TableCell colspan="6" class="h-48 text-center text-muted-foreground">
+                <div class="flex flex-col items-center justify-center space-y-4">
+                  <UserPlus class="h-10 w-10 opacity-10" />
+                  <p>Aucun client trouvé.</p>
+                  <Button variant="outline" size="sm" @click="fetchData">
+                    <RefreshCw class="mr-2 h-4 w-4" />
+                    Actualiser les données
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>

@@ -241,7 +241,7 @@ const handleUpdateCustomer = async () => {
         </CardContent>
       </Card>
 
-      <!-- Subscriptions / Recurring Payments -->
+      <!-- Subscriptions fdfd/ Recurring Payments -->
       <Card class="lg:col-span-3">
         <CardHeader>
           <CardTitle>Abonnements & Récurrents</CardTitle>

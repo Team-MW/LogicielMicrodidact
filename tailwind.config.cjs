@@ -1,6 +1,6 @@
 const animate = require("tailwindcss-animate");
 
-/** ccdd@type {import('tailwindcss').Config} */
+/** ccdddsds@type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
   safelist: ["dark"],

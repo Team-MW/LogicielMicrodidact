@@ -86,7 +86,7 @@ const fetchInstallations = async () => {
   try {
     const { data, error } = await supabase
       .from('installations')
-      .select('*, projects(name)')
+      .select('*')
       .order('created_at', { ascending: false })
     
     if (error) {
@@ -377,11 +377,7 @@ onMounted(() => {
 
         <h3 class="text-xl font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors leading-tight">{{ inst.client }}</h3>
         
-        <!-- Project Link Badge -->
-        <div v-if="(inst as any).projects?.name" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100 mb-4">
-          <Briefcase class="w-3.5 h-3.5 text-indigo-500" />
-          <span class="text-[9px] font-black uppercase text-indigo-600">{{ (inst as any).projects?.name }}</span>
-        </div>
+
         
         <div class="space-y-3 mb-6">
           <div class="flex items-start gap-2 text-slate-500">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -84,7 +84,7 @@ const handleAddItem = async () => {
   if (!newItem.value.name || !newItem.value.supplier) return
   isAdding.value = true
   
-  const { data, error } = await supabase.from('inventory').insert({
+  const { error } = await supabase.from('inventory').insert({
     ...newItem.value,
     last_restock: new Date().toISOString().split('T')[0]
   }).select()

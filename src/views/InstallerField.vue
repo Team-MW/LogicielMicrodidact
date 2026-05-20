@@ -38,7 +38,7 @@ const router = useRouter()
 const installations = ref<Installation[]>([])
 const loading = ref(true)
 const searchQuery = ref('')
-const selectedPoseur = ref('Amar') // Hardcoded to Amar
+
 const refreshInterval = ref<any>(null)
 
 // --- Nouveau Chantier States ---

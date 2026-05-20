@@ -5,15 +5,13 @@ import { supabase } from '@/lib/supabase'
 import { 
   ArrowLeft, 
   Camera, 
-  X, 
   Send, 
   CheckCircle2, 
-  Image as ImageIcon,
   Loader2,
   Trash2,
-  Clock
+  Clock,
+  MapPin
 } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
 
 const route = useRoute()
 const router = useRouter()

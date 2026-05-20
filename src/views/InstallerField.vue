@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  Briefcase,
   LogOut,
   Plus,
   Camera,

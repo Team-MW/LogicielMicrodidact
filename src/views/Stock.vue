@@ -74,9 +74,9 @@ const filteredStock = computed(() => {
   if (!searchQuery.value) return stockItems.value
   const query = searchQuery.value.toLowerCase()
   return stockItems.value.filter(item => 
-    item.name.toLowerCase().includes(query) || 
-    item.category.toLowerCase().includes(query) ||
-    item.supplier.toLowerCase().includes(query)
+    (item.name || '').toLowerCase().includes(query) || 
+    (item.category || '').toLowerCase().includes(query) ||
+    (item.supplier || '').toLowerCase().includes(query)
   )
 })
 

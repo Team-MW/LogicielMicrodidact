@@ -95,8 +95,8 @@ const filteredWebsites = computed(() => {
   const query = searchQuery.value.toLowerCase()
   return websites.value.filter(site => {
     const customerName = getCustomerName(site.customerId).toLowerCase()
-    return site.name.toLowerCase().includes(query) || 
-           site.url.toLowerCase().includes(query) ||
+    return (site.name || '').toLowerCase().includes(query) || 
+           (site.url || '').toLowerCase().includes(query) ||
            customerName.includes(query)
   })
 })

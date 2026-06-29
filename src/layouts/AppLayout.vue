@@ -19,7 +19,8 @@ import {
   Monitor,
   Calendar,
   Globe,
-  Smartphone
+  Smartphone,
+  TrendingUp
 } from 'lucide-vue-next'
 
 const isMobileMenuOpen = ref(false)
@@ -50,6 +51,7 @@ const navItems = [
   { name: 'Projets', icon: Briefcase, path: '/projects' },
   { name: 'Suivi Logiciels', icon: Monitor, path: '/software' },
   { name: 'Planning', icon: Calendar, path: '/calendar' },
+  { name: 'Planning Commercial', icon: TrendingUp, path: '/commercial' },
   { name: 'Suivi Poseurs', icon: Truck, path: '/installers' },
   { name: 'Espace Poseur (Amar)', icon: Smartphone, path: '/installer' },
   { name: 'Clients', icon: Users, path: '/customers' },

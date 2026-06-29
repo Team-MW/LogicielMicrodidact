@@ -96,8 +96,8 @@ const filteredTracking = computed(() => {
   return trackingData.value.filter(item => {
     const customerName = getCustomerName(item.customerId).toLowerCase()
     return customerName.includes(query) || 
-           item.notes.toLowerCase().includes(query) || 
-           item.agent.toLowerCase().includes(query)
+           (item.notes || '').toLowerCase().includes(query) || 
+           (item.agent || '').toLowerCase().includes(query)
   })
 })
 

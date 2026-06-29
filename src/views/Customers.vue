@@ -83,9 +83,9 @@ const filteredCustomers = computed(() => {
   if (!searchQuery.value) return customers.value
   const query = searchQuery.value.toLowerCase()
   return customers.value.filter(c => 
-    c.name.toLowerCase().includes(query) || 
-    c.email.toLowerCase().includes(query) ||
-    c.phone.toLowerCase().includes(query)
+    (c.name || '').toLowerCase().includes(query) || 
+    (c.email || '').toLowerCase().includes(query) ||
+    (c.phone || '').toLowerCase().includes(query)
   )
 })
 

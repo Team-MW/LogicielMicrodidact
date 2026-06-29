@@ -142,7 +142,7 @@ const filteredDomains = computed(() => {
 
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(d => d.name.toLowerCase().includes(q) || d.customer.toLowerCase().includes(q))
+    result = result.filter(d => (d.name || '').toLowerCase().includes(q) || (d.customer || '').toLowerCase().includes(q))
   }
   
   return result

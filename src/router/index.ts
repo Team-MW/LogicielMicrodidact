@@ -12,7 +12,7 @@ import Login from '@/views/Login.vue'
 import Domains from '@/views/Domains.vue'
 import InstallerField from '@/views/InstallerField.vue'
 import InstallerReport from '@/views/InstallerReport.vue'
-
+import CommercialTasks from '@/views/CommercialTasks.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -98,6 +98,12 @@ const router = createRouter({
       path: '/domains',
       name: 'domains',
       component: Domains,
+      meta: { layout: 'admin' }
+    },
+    {
+      path: '/commercial',
+      name: 'commercial',
+      component: CommercialTasks,
       meta: { layout: 'admin' }
     }
   ]

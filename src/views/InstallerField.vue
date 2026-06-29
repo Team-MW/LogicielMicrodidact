@@ -18,7 +18,8 @@ import {
   Camera,
   Trash2,
   Loader2,
-  X
+  X,
+  FileText
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { uploadToCloudinary } from '@/lib/cloudinary'
@@ -86,6 +87,7 @@ const fetchInstallations = async () => {
     const { data, error } = await supabase
       .from('installations')
       .select('*')
+      .eq('poseur', 'Amar')
       .order('created_at', { ascending: false })
     
     if (error) {
@@ -135,7 +137,6 @@ const submitNewIntervention = async () => {
   savingNew.value = true
   
   try {
-    // 1. Insert installation in installations table
     const { data: instData, error: instErr } = await supabase.from('installations').insert({
       client: newIntervention.value.client.trim(),
       address: newIntervention.value.address.trim() || 'Non spécifiée',
@@ -148,13 +149,12 @@ const submitNewIntervention = async () => {
 
     if (instErr) throw instErr
 
-    // 2. Insert note in installation_notes table formatted as JSON
     const now = new Date()
     const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
     
     const reportData = {
       isReport: true,
-      hours: `${newIntervention.value.startTime} - ${newIntervention.value.endTime}`, // Clean hour string
+      hours: `${newIntervention.value.startTime} - ${newIntervention.value.endTime}`,
       text: newIntervention.value.notes.trim() || 'Nouvelle intervention créée directement sur le terrain.',
       photos: newIntervention.value.photos
     }
@@ -167,7 +167,6 @@ const submitNewIntervention = async () => {
 
     showCreateModal.value = false
     
-    // Reset form
     newIntervention.value = {
       client: '',
       address: '',
@@ -179,9 +178,8 @@ const submitNewIntervention = async () => {
       notes: ''
     }
     
-    // Refresh list then show toast
     await fetchInstallations()
-    showToast('✅ Chantier ajouté ! Il apparaît maintenant dans la liste.')
+    showToast('✅ Chantier ajouté avec succès !')
   } catch (error) {
     console.error('Error creating intervention:', error)
     showToast('❌ Erreur lors de la création. Réessayez.')
@@ -194,20 +192,12 @@ onUnmounted(() => {
   if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
-// Stats - show all fetched installations
-const amarInstallations = computed(() => installations.value)
-const stats = computed(() => ({
-  total: amarInstallations.value.length,
-  done: amarInstallations.value.filter(i => i.status === 'Terminé').length,
-  inProgress: amarInstallations.value.filter(i => i.status === 'En cours').length,
-  todo: amarInstallations.value.filter(i => i.status === 'À planifier').length,
-}))
-
 const filteredInstallations = () => {
   if (!searchQuery.value) return installations.value
+  const query = searchQuery.value.toLowerCase()
   return installations.value.filter(inst =>
-    inst.client.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
-    inst.address.toLowerCase().includes(searchQuery.value.toLowerCase())
+    (inst.client || '').toLowerCase().includes(query) || 
+    (inst.address || '').toLowerCase().includes(query)
   )
 }
 
@@ -218,9 +208,15 @@ const getStatusIcon = (status: string) => {
 }
 
 const getStatusColor = (status: string) => {
-  if (status === 'Terminé') return 'text-emerald-500'
-  if (status === 'En cours') return 'text-indigo-500'
-  return 'text-amber-500'
+  if (status === 'Terminé') return 'text-emerald-500 bg-emerald-50 border-emerald-100'
+  if (status === 'En cours') return 'text-indigo-500 bg-indigo-50 border-indigo-100'
+  return 'text-amber-500 bg-amber-50 border-amber-100'
+}
+
+const getStatusDot = (status: string) => {
+  if (status === 'Terminé') return 'bg-emerald-500'
+  if (status === 'En cours') return 'bg-indigo-500'
+  return 'bg-amber-500'
 }
 
 const goToReport = (id: number) => {
@@ -229,7 +225,6 @@ const goToReport = (id: number) => {
 
 onMounted(() => {
   fetchInstallations()
-  // Always auto-refresh every 10s so new assignments from admin appear too
   refreshInterval.value = setInterval(() => {
     fetchInstallations()
   }, 10000)
@@ -237,350 +232,329 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex flex-col pb-20 relative">
+  <div class="min-h-screen bg-[#F8FAFC] flex flex-col pb-32 relative font-sans">
+    
     <!-- Toast Banner -->
     <transition name="slide-down">
       <div 
         v-if="successToast"
-        class="fixed top-4 left-4 right-4 z-[100] px-5 py-4 bg-slate-900 text-white text-sm font-bold rounded-2xl shadow-xl flex items-center gap-3"
+        class="fixed top-6 left-1/2 -translate-x-1/2 z-[200] px-6 py-3.5 bg-slate-900/95 backdrop-blur-md text-white text-sm font-semibold rounded-full shadow-2xl flex items-center gap-3 w-11/12 max-w-sm whitespace-nowrap"
       >
-        <span class="flex-1">{{ successToast }}</span>
+        <span class="flex-1 text-center truncate">{{ successToast }}</span>
       </div>
     </transition>
 
-    <!-- Header -->
-    <header class="bg-white border-b px-6 py-6 sticky top-0 z-10">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-black text-slate-900 tracking-tight uppercase">Mes Installations</h1>
-          <p class="text-indigo-600 text-sm font-bold uppercase tracking-widest text-[10px]">Espace Poseur • Amar</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <button @click="logout" class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center border border-rose-100 hover:bg-rose-100 transition-colors shadow-sm" title="Déconnexion">
-            <LogOut class="w-5 h-5" />
-          </button>
-          <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-            <Truck class="text-white w-6 h-6" />
+    <!-- Header (Glassmorphism) -->
+    <header class="sticky top-0 z-40 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50 pt-8 pb-5 px-6">
+      <div class="max-w-xl mx-auto w-full">
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex flex-col">
+            <span class="text-indigo-600 text-[10px] font-black uppercase tracking-widest mb-1">Espace Poseur</span>
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Interventions</h1>
+          </div>
+          <div class="flex items-center gap-3">
+            <button @click="logout" class="w-11 h-11 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition-colors shadow-sm" title="Déconnexion">
+              <LogOut class="w-5 h-5" />
+            </button>
+            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-200 ring-4 ring-indigo-50">
+              <span class="text-white font-bold text-lg">A</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Actions & Search -->
-      <div class="space-y-4">
-        <!-- "+ Nouveau Chantier" Button -->
-        <button 
-          @click="showCreateModal = true"
-          class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all animate-bounce-subtle"
-        >
-          <Plus class="w-4 h-4" />
-          Nouveau Chantier
-        </button>
-
+        <!-- Search Bar -->
         <div class="relative">
-          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input 
             v-model="searchQuery"
             type="text" 
-            placeholder="Rechercher mes chantiers..."
-            class="w-full pl-11 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
+            placeholder="Rechercher un client, une adresse..."
+            class="w-full pl-12 pr-4 py-4 bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-2xl text-[15px] font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all outline-none shadow-sm placeholder:text-slate-400"
           />
         </div>
       </div>
     </header>
 
-    <!-- Amar's Personal Stats Dashboard -->
-    <div v-if="!loading" class="px-6 pt-4 pb-2 max-w-xl mx-auto w-full">
-      <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Mon Suivi</p>
-      <div class="grid grid-cols-4 gap-2">
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 text-center">
-          <span class="text-2xl font-black text-slate-900">{{ stats.total }}</span>
-          <p class="text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Total</p>
-        </div>
-        <div class="bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm p-3 text-center">
-          <span class="text-2xl font-black text-emerald-600">{{ stats.done }}</span>
-          <p class="text-[8px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">Terminés</p>
-        </div>
-        <div class="bg-indigo-50 rounded-2xl border border-indigo-100 shadow-sm p-3 text-center">
-          <span class="text-2xl font-black text-indigo-600">{{ stats.inProgress }}</span>
-          <p class="text-[8px] font-black text-indigo-500 uppercase tracking-wider mt-0.5">En cours</p>
-        </div>
-        <div class="bg-amber-50 rounded-2xl border border-amber-100 shadow-sm p-3 text-center">
-          <span class="text-2xl font-black text-amber-600">{{ stats.todo }}</span>
-          <p class="text-[8px] font-black text-amber-500 uppercase tracking-wider mt-0.5">À faire</p>
-        </div>
-      </div>
-      <!-- Progress bar -->
-      <div class="mt-3 bg-slate-100 rounded-full h-2 overflow-hidden">
-        <div 
-          class="h-full bg-emerald-500 rounded-full transition-all duration-700"
-          :style="{ width: stats.total > 0 ? (stats.done / stats.total * 100) + '%' : '0%' }"
-        ></div>
-      </div>
-      <p class="text-[9px] font-bold text-slate-400 mt-1 text-right">
-        {{ stats.total > 0 ? Math.round(stats.done / stats.total * 100) : 0 }}% terminés
-      </p>
-    </div>
-
     <!-- Content -->
-    <main class="flex-1 px-6 py-4 space-y-4 max-w-xl mx-auto w-full">
+    <main class="flex-1 px-6 py-6 space-y-5 max-w-xl mx-auto w-full">
+      
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-[11px] font-black uppercase tracking-widest text-slate-400">Mes chantiers assignés</h2>
+      </div>
 
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 space-y-4">
-        <div class="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p class="text-slate-400 font-medium animate-pulse">Chargement de mes chantiers...</p>
+        <div class="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p class="text-slate-400 font-medium text-sm">Chargement des données...</p>
       </div>
 
-      <div v-else-if="filteredInstallations().length === 0" class="flex flex-col items-center justify-center py-16 text-center space-y-5 px-4">
-        <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center">
-          <Truck class="w-10 h-10 text-indigo-300" />
+      <div v-else-if="filteredInstallations().length === 0" class="flex flex-col items-center justify-center py-20 text-center space-y-6 px-4">
+        <div class="w-24 h-24 bg-indigo-50/50 rounded-full flex items-center justify-center">
+          <FileText class="w-10 h-10 text-indigo-300" />
         </div>
         <div class="space-y-2">
-          <p class="text-slate-700 font-black text-base">Aucun chantier assigné</p>
-          <!-- Error message if Supabase failed -->
+          <p class="text-slate-800 font-black text-lg">Aucun chantier en vue</p>
           <div v-if="fetchError" class="mt-2 px-4 py-3 bg-rose-50 border border-rose-100 rounded-2xl max-w-xs mx-auto">
-            <p class="text-rose-600 text-xs font-bold">⚠️ Erreur base de données</p>
+            <p class="text-rose-600 text-xs font-bold">⚠️ Erreur de connexion</p>
             <p class="text-rose-500 text-[10px] font-medium mt-0.5 break-all">{{ fetchError }}</p>
           </div>
-          <p v-else class="text-slate-400 text-xs font-medium leading-relaxed max-w-xs">
-            Tes chantiers s'afficheront ici.<br/>
-            Tu peux aussi en créer un directement avec le bouton <strong class="text-indigo-600">+ Nouveau Chantier</strong> ci-dessus.
+          <p v-else class="text-slate-500 text-sm font-medium leading-relaxed max-w-xs mx-auto">
+            Vous n'avez pas de chantiers assignés pour le moment.
           </p>
         </div>
         <button 
           @click="fetchInstallations"
-          class="px-6 py-2.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-900 shadow-sm active:scale-95 transition-all flex items-center gap-2 uppercase tracking-widest"
+          class="px-6 py-3 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-700 shadow-sm active:scale-95 transition-all flex items-center gap-2"
         >
-          <RefreshCw class="w-3.5 h-3.5" :class="loading && 'animate-spin'" />
+          <RefreshCw class="w-4 h-4" :class="loading && 'animate-spin'" />
           Actualiser
         </button>
       </div>
 
+      <!-- Installation Cards -->
       <div 
         v-else
         v-for="inst in filteredInstallations()" 
         :key="inst.id"
         @click="goToReport(inst.id)"
-        class="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm active:scale-[0.98] transition-all cursor-pointer group relative overflow-hidden"
+        class="bg-white p-5 rounded-[28px] border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 cursor-pointer group relative overflow-hidden"
       >
-        <div class="flex justify-between items-start mb-4">
-          <div class="flex items-center gap-2">
-            <div :class="[getStatusColor(inst.status), 'p-1.5 rounded-xl bg-slate-50 border border-current/10']">
-              <component :is="getStatusIcon(inst.status)" class="w-4 h-4" />
-            </div>
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">{{ inst.status }}</span>
+        <div class="flex justify-between items-center mb-4">
+          <div :class="['px-3 py-1.5 rounded-full border flex items-center gap-2', getStatusColor(inst.status)]">
+            <div :class="['w-1.5 h-1.5 rounded-full animate-pulse', getStatusDot(inst.status)]"></div>
+            <span class="text-[10px] font-black uppercase tracking-wider">{{ inst.status }}</span>
           </div>
-          <div class="flex items-center gap-1 text-slate-400">
+          <div class="flex items-center gap-1.5 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
             <Calendar class="w-3.5 h-3.5" />
-            <span class="text-[10px] font-black uppercase">{{ inst.deadline }}</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider">{{ inst.deadline }}</span>
           </div>
         </div>
 
-        <h3 class="text-xl font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors leading-tight">{{ inst.client }}</h3>
+        <h3 class="text-xl font-black text-slate-900 mb-4 group-hover:text-indigo-600 transition-colors leading-tight pr-8">
+          {{ inst.client }}
+        </h3>
         
-
-        
-        <div class="space-y-3 mb-6">
-          <div class="flex items-start gap-2 text-slate-500">
-            <MapPin class="w-4 h-4 mt-0.5 shrink-0 opacity-40" />
-            <p class="text-sm font-bold leading-snug">{{ inst.address }}</p>
-          </div>
-          <div class="flex items-center gap-2 text-slate-500">
-            <div class="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
-              <User class="w-3.5 h-3.5 shrink-0 text-slate-400" />
+        <div class="space-y-3 mb-5 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+              <MapPin class="w-4 h-4 text-indigo-400" />
             </div>
-            <p class="text-[11px] font-black uppercase tracking-tight">{{ inst.poseur }}</p>
+            <p class="text-sm font-semibold text-slate-600 leading-snug pt-1.5">{{ inst.address }}</p>
           </div>
         </div>
 
-        <div class="pt-4 border-t border-slate-50 flex items-center justify-between">
-          <span class="text-[10px] font-black uppercase tracking-widest text-indigo-500">Remplir le rapport / Notes</span>
-          <div class="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-            <ChevronRight class="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center">
+              <FileText class="w-3.5 h-3.5 text-indigo-500" />
+            </div>
+            <span class="text-[11px] font-bold text-slate-500">Rapport & Notes</span>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-900 flex items-center justify-center group-hover:bg-indigo-600 transition-colors shadow-md">
+            <ChevronRight class="w-5 h-5 text-white" />
           </div>
         </div>
-        
-        <!-- Decoration -->
-        <div class="absolute -right-4 -top-4 w-16 h-16 bg-slate-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500"></div>
       </div>
     </main>
 
-    <!-- Modal: Nouveau Chantier / Intervention (Amar View) -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showCreateModal = false">
-      <div class="bg-white rounded-[32px] max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" @click.stop>
+    <!-- Floating Action Button (FAB) -->
+    <div class="fixed bottom-28 right-6 z-40">
+      <button 
+        @click="showCreateModal = true"
+        class="group w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-[0_8px_30px_rgba(79,70,229,0.3)] hover:shadow-[0_12px_40px_rgba(79,70,229,0.4)] hover:-translate-y-1 active:scale-95 transition-all duration-300 border border-white/20"
+      >
+        <Plus class="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
+      </button>
+    </div>
+
+    <!-- Bottom Navigation (Floating) -->
+    <nav class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-2xl px-2 py-2 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.08)] flex gap-2 z-30 border border-white max-w-[280px] w-full">
+      <div class="flex-1 py-3 px-2 bg-indigo-50 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
+        <Truck class="w-5 h-5 text-indigo-600" />
+        <span class="text-[9px] font-black uppercase tracking-widest text-indigo-600">Chantiers</span>
+      </div>
+      <div class="flex-1 py-3 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
+        <CheckCircle2 class="w-5 h-5" />
+        <span class="text-[9px] font-bold uppercase tracking-widest">Terminés</span>
+      </div>
+    </nav>
+
+    <!-- Backdrop for Modal -->
+    <transition name="fade">
+      <div v-if="showCreateModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90]" @click="showCreateModal = false"></div>
+    </transition>
+
+    <!-- Modal: Nouveau Chantier (Bottom Sheet Style) -->
+    <transition name="slide-up">
+      <div v-if="showCreateModal" class="fixed inset-x-0 bottom-0 bg-white rounded-t-[40px] shadow-2xl z-[100] max-h-[90vh] flex flex-col overflow-hidden max-w-2xl mx-auto">
         
-        <!-- Modal Header -->
-        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h3 class="text-xl font-black text-slate-900 tracking-tight">Nouveau Chantier</h3>
-            <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Création & Rapport instantané</p>
+        <!-- Drag Handle / Header -->
+        <div class="px-6 pt-4 pb-2 border-b border-slate-100 shrink-0 relative bg-white">
+          <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4"></div>
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-2xl font-black text-slate-900 tracking-tight">Nouveau Chantier</h3>
+              <p class="text-xs text-indigo-500 font-semibold mt-1">Saisie rapide d'intervention</p>
+            </div>
+            <button @click="showCreateModal = false" class="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-slate-100 transition-colors">
+              <X class="h-5 w-5" />
+            </button>
           </div>
-          <button @click="showCreateModal = false" class="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-            <X class="h-5 w-5" />
-          </button>
         </div>
 
-        <!-- Modal Content (Scrollable Form) -->
-        <div class="p-6 overflow-y-auto max-h-[60vh] space-y-5">
-          <!-- Nom du Client -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Nom du Client *</label>
-            <input 
-              v-model="newIntervention.client"
-              placeholder="Ex: Boulangerie Paul"
-              class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold"
-            />
-          </div>
-
-          <!-- Adresse -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Adresse du Chantier</label>
-            <input 
-              v-model="newIntervention.address"
-              placeholder="Ex: 12 Rue de la Gare, Toulouse"
-              class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold"
-            />
-          </div>
-
-          <!-- Type d'Enseigne -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Type d'Enseigne</label>
-            <input 
-              v-model="newIntervention.signType"
-              placeholder="Ex: Double-face LED"
-              class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
-            <!-- Statut -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Statut</label>
-              <select 
-                v-model="newIntervention.status"
-                class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold"
-              >
-                <option value="Terminé">Terminé</option>
-                <option value="En cours">En cours</option>
-                <option value="À planifier">À planifier</option>
-              </select>
-            </div>
-            <!-- Date de réalisation -->
-            <div class="space-y-1.5">
-              <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Date</label>
+        <!-- Scrollable Form Content -->
+        <div class="p-6 overflow-y-auto flex-1 space-y-6">
+          
+          <div class="space-y-4">
+            <!-- Nom du Client -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Nom du Client <span class="text-rose-500">*</span></label>
               <input 
-                disabled
-                placeholder="Aujourd'hui"
-                class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-slate-100 text-slate-400 font-bold outline-none cursor-not-allowed"
+                v-model="newIntervention.client"
+                placeholder="Ex: Boulangerie Paul"
+                class="w-full px-5 py-4 text-[15px] rounded-2xl border-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none transition-all font-semibold placeholder:text-slate-400"
+              />
+            </div>
+
+            <!-- Adresse -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Adresse</label>
+              <input 
+                v-model="newIntervention.address"
+                placeholder="Lieu de l'intervention"
+                class="w-full px-5 py-4 text-[15px] rounded-2xl border-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none transition-all font-semibold placeholder:text-slate-400"
+              />
+            </div>
+            
+            <!-- Type -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Type d'enseigne</label>
+              <input 
+                v-model="newIntervention.signType"
+                placeholder="Ex: Caisson Lumineux"
+                class="w-full px-5 py-4 text-[15px] rounded-2xl border-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none transition-all font-semibold placeholder:text-slate-400"
               />
             </div>
           </div>
 
-          <!-- Horaires de travail - DEUX DROPDOWNS DÉROULANTS -->
-          <div class="space-y-1.5 border-t border-slate-50 pt-4">
-            <label class="text-xs font-black text-slate-600 uppercase tracking-wide block">Horaires de travail</label>
-            <div class="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/60 shadow-3xs">
-              <div class="space-y-1">
-                <span class="text-[9px] font-bold text-slate-400 uppercase">Commencé à :</span>
-                <div class="relative flex items-center bg-white rounded-xl border border-slate-200/60">
-                  <Clock class="absolute left-3 w-3.5 h-3.5 text-indigo-500 pointer-events-none" />
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Statut -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Statut</label>
+              <div class="relative">
+                <select 
+                  v-model="newIntervention.status"
+                  class="w-full px-5 py-4 text-[15px] rounded-2xl border-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none transition-all font-bold appearance-none"
+                >
+                  <option value="Terminé">Terminé</option>
+                  <option value="En cours">En cours</option>
+                  <option value="À planifier">À planifier</option>
+                </select>
+                <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <ChevronRight class="w-4 h-4 text-slate-400 rotate-90" />
+                </div>
+              </div>
+            </div>
+            
+            <!-- Date -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Date</label>
+              <input 
+                disabled
+                placeholder="Aujourd'hui"
+                class="w-full px-5 py-4 text-[15px] rounded-2xl border-none bg-slate-100 text-slate-400 font-bold outline-none cursor-not-allowed shadow-inner"
+              />
+            </div>
+          </div>
+
+          <!-- Horaires -->
+          <div class="p-5 bg-indigo-50/50 rounded-[28px] border border-indigo-100/50">
+            <label class="text-[11px] font-black text-indigo-900 uppercase tracking-widest mb-3 block">Horaires d'intervention</label>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-indigo-400 uppercase">Début</span>
+                <div class="relative flex items-center bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+                  <Clock class="absolute left-3 w-4 h-4 text-indigo-400 pointer-events-none" />
                   <select 
                     v-model="newIntervention.startTime"
-                    class="w-full pl-9 pr-6 py-3 bg-transparent border-none text-xs font-bold text-slate-800 outline-none appearance-none"
+                    class="w-full pl-10 pr-6 py-3.5 bg-transparent border-none text-sm font-bold text-slate-800 outline-none appearance-none"
                   >
                     <option v-for="h in startHoursOptions" :key="h" :value="h">{{ h }}</option>
                   </select>
-                  <div class="absolute right-2 pointer-events-none text-slate-400 text-[10px]">▼</div>
                 </div>
               </div>
 
-              <div class="space-y-1">
-                <span class="text-[9px] font-bold text-slate-400 uppercase">Fini à :</span>
-                <div class="relative flex items-center bg-white rounded-xl border border-slate-200/60">
-                  <Clock class="absolute left-3 w-3.5 h-3.5 text-indigo-500 pointer-events-none" />
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-indigo-400 uppercase">Fin</span>
+                <div class="relative flex items-center bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+                  <Clock class="absolute left-3 w-4 h-4 text-indigo-400 pointer-events-none" />
                   <select 
                     v-model="newIntervention.endTime"
-                    class="w-full pl-9 pr-6 py-3 bg-transparent border-none text-xs font-bold text-slate-800 outline-none appearance-none"
+                    class="w-full pl-10 pr-6 py-3.5 bg-transparent border-none text-sm font-bold text-slate-800 outline-none appearance-none"
                   >
                     <option v-for="h in endHoursOptions" :key="h" :value="h">{{ h }}</option>
                   </select>
-                  <div class="absolute right-2 pointer-events-none text-slate-400 text-[10px]">▼</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Upload Photos -->
-          <div class="space-y-3 border-t border-slate-50 pt-4">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Photos du Chantier</label>
-              <span class="text-[10px] font-bold text-slate-400">{{ newIntervention.photos.length }} photo(s)</span>
+          <!-- Photos -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between pl-1">
+              <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest">Photos du terrain</label>
+              <span class="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{{ newIntervention.photos.length }} photo(s)</span>
             </div>
             
-            <div class="grid grid-cols-3 gap-2.5">
-              <!-- Photo Previews -->
-              <div v-for="(photo, index) in newIntervention.photos" :key="index" class="relative aspect-square rounded-2xl overflow-hidden shadow-xs border border-slate-100 shrink-0">
+            <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
+              <!-- Upload trigger -->
+              <label class="w-28 h-28 shrink-0 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 transition-colors snap-start">
+                <input type="file" multiple accept="image/*" class="hidden" @change="handleCreatePhotoUpload" />
+                <Camera v-if="!createUploading" class="w-6 h-6 text-slate-400" />
+                <Loader2 v-else class="w-6 h-6 text-indigo-500 animate-spin" />
+                <span class="text-[10px] font-bold text-slate-500">Ajouter</span>
+              </label>
+
+              <!-- Previews -->
+              <div v-for="(photo, index) in newIntervention.photos" :key="index" class="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden shadow-sm border border-slate-100 snap-start group">
                 <img :src="photo" class="w-full h-full object-cover" />
+                <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <button 
                   type="button"
                   @click="removeCreatePhoto(index)"
-                  class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center text-white"
+                  class="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500/90 backdrop-blur-sm flex items-center justify-center text-white transform scale-90 group-hover:scale-100 transition-all shadow-lg"
                 >
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>
-
-              <!-- Upload trigger -->
-              <label class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-100/50 active:scale-95 transition-all">
-                <input type="file" multiple accept="image/*" class="hidden" @change="handleCreatePhotoUpload" />
-                <Camera v-if="!createUploading" class="w-5 h-5 text-indigo-500" />
-                <Loader2 v-else class="w-5 h-5 text-indigo-500 animate-spin" />
-                <span class="text-[8px] font-black text-slate-400 uppercase tracking-tight">Ajouter</span>
-              </label>
             </div>
           </div>
 
-          <!-- Notes / Compte-rendu -->
-          <div class="space-y-1.5 border-t border-slate-50 pt-4">
-            <label class="text-xs font-black text-slate-600 uppercase tracking-wide">Remarques / Compte-rendu</label>
+          <!-- Notes -->
+          <div class="space-y-2 pb-6">
+            <label class="text-[11px] font-black text-slate-700 uppercase tracking-widest pl-1">Notes & Compte-rendu</label>
             <textarea 
               v-model="newIntervention.notes"
-              rows="3"
-              placeholder="Expliquez ce qui a été fait ou remarques..."
-              class="w-full p-4 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-semibold resize-none"
+              rows="4"
+              placeholder="Décrivez ce qui a été réalisé, les problèmes rencontrés..."
+              class="w-full p-5 text-[15px] rounded-2xl border-none bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none transition-all font-medium resize-none placeholder:text-slate-400"
             ></textarea>
           </div>
         </div>
 
-        <!-- Modal Footer -->
-        <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
-          <Button variant="ghost" size="sm" @click="showCreateModal = false" :disabled="savingNew" class="rounded-xl">Annuler</Button>
-          <Button 
+        <!-- Sticky Footer Action -->
+        <div class="p-6 bg-white border-t border-slate-100 shrink-0 pb-safe">
+          <button 
             @click="submitNewIntervention" 
             :disabled="savingNew" 
-            class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 px-5"
+            class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
           >
-            <Loader2 v-if="savingNew" class="w-4 h-4 animate-spin" />
-            Enregistrer Chantier
-          </Button>
+            <Loader2 v-if="savingNew" class="w-5 h-5 animate-spin" />
+            <span v-else>Enregistrer le chantier</span>
+          </button>
         </div>
 
       </div>
-    </div>
-
-    <!-- Bottom Nav -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t px-8 py-4 flex justify-between items-center z-10 shadow-2xl">
-      <div class="flex flex-col items-center gap-1 text-indigo-600">
-        <Truck class="w-6 h-6" />
-        <span class="text-[9px] font-black uppercase tracking-widest">Missions</span>
-      </div>
-      <div class="flex flex-col items-center gap-1 text-slate-300">
-        <CheckCircle2 class="w-6 h-6 opacity-40" />
-        <span class="text-[9px] font-black uppercase tracking-widest opacity-40">Terminées</span>
-      </div>
-      <div class="flex flex-col items-center gap-1 text-slate-300">
-        <User class="w-6 h-6 opacity-40" />
-        <span class="text-[9px] font-black uppercase tracking-widest opacity-40">Profil</span>
-      </div>
-    </nav>
+    </transition>
 
   </div>
 </template>
@@ -594,22 +568,36 @@ onMounted(() => {
   scrollbar-width: none;
 }
 
-@keyframes bounce-subtle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-.animate-bounce-subtle {
-  animation: bounce-subtle 2s infinite ease-in-out;
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 24px);
 }
 
-/* Toast slide-down transition */
+/* Transitions for Toast and Modal */
 .slide-down-enter-active,
 .slide-down-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 .slide-down-enter-from,
 .slide-down-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translate(-50%, -150%);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
 }
 </style>

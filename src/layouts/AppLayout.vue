@@ -20,7 +20,8 @@ import {
   Calendar,
   Globe,
   Smartphone,
-  TrendingUp
+  TrendingUp,
+  CreditCard
 } from 'lucide-vue-next'
 
 const isMobileMenuOpen = ref(false)
@@ -48,8 +49,9 @@ const logout = () => {
 const navItems = [
   { name: 'Tableau de Bord', icon: LayoutDashboard, path: '/' },
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
-  { name: 'Projets', icon: Briefcase, path: '/projects' },
+  { name: 'Suivi Vitrine', icon: Briefcase, path: '/projects' },
   { name: 'Suivi Logiciels', icon: Monitor, path: '/software' },
+  { name: 'Suivi Facturation', icon: CreditCard, path: '/billing' },
   { name: 'Planning', icon: Calendar, path: '/calendar' },
   { name: 'Planning Commercial', icon: TrendingUp, path: '/commercial' },
   { name: 'Suivi Poseurs', icon: Truck, path: '/installers' },

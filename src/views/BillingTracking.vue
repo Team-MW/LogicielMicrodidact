@@ -24,8 +24,6 @@ interface Note {
   date: string
 }
 
-
-
 const projects = ref<Project[]>([])
 const projectNotes = ref<Record<number, Note[]>>({})
 const activeFilter = ref('Tous')
@@ -34,6 +32,7 @@ const newNoteText = ref('')
 const searchQuery = ref('')
 const refreshInterval = ref<any>(null)
 
+const showAddModal = ref(false)
 const newProject = ref({
   name: '',
   client: '',
@@ -41,13 +40,8 @@ const newProject = ref({
   priority: 'Moyenne'
 })
 
-const showAddModal = ref(false)
-
-const isEditing = ref(false)
-const editingProjectData = ref<any>(null)
-
 const fetchProjects = async () => {
-  const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('billing_projects').select('*').order('created_at', { ascending: false })
   if (data && !error) {
     projects.value = data
     if (data.length > 0 && refreshInterval.value) {
@@ -58,7 +52,7 @@ const fetchProjects = async () => {
 }
 
 const fetchNotes = async () => {
-  const { data, error } = await supabase.from('project_notes').select('*').order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('billing_project_notes').select('*').order('created_at', { ascending: false })
   if (data && !error) {
     const mapped: Record<number, Note[]> = {}
     data.forEach(note => {
@@ -126,7 +120,7 @@ const updateStatus = async (projectId: number, newStatus: string) => {
   if (newStatus === 'Terminé' || newStatus === 'Traité') progress = 100
   if (newStatus === 'En cours') progress = 50
   
-  const { error } = await supabase.from('projects').update({ status: newStatus, progress }).eq('id', projectId)
+  const { error } = await supabase.from('billing_projects').update({ status: newStatus, progress }).eq('id', projectId)
   if (!error) {
     const project = projects.value.find(p => p.id === projectId)
     if (project) {
@@ -142,7 +136,7 @@ const addNote = async () => {
   const now = new Date()
   const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
   
-  const { data, error } = await supabase.from('project_notes').insert({
+  const { data, error } = await supabase.from('billing_project_notes').insert({
     project_id: projectId,
     text: newNoteText.value.trim(),
     date: formattedDate
@@ -157,7 +151,7 @@ const addNote = async () => {
 
 const deleteNote = async (noteId: number, projectId: number) => {
   if (confirm('Supprimer cette note ?')) {
-    const { error } = await supabase.from('project_notes').delete().eq('id', noteId)
+    const { error } = await supabase.from('billing_project_notes').delete().eq('id', noteId)
     if (!error) {
       projectNotes.value[projectId] = projectNotes.value[projectId].filter(n => n.id !== noteId)
     }
@@ -167,10 +161,10 @@ const deleteNote = async (noteId: number, projectId: number) => {
 const deleteProject = async (id: number) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce projet ?')) {
     // Supprimer les notes enfants pour respecter la clé étrangère SQL
-    await supabase.from('project_notes').delete().eq('project_id', id)
+    await supabase.from('billing_project_notes').delete().eq('project_id', id)
 
     // Puis supprimer le projet
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { error } = await supabase.from('billing_projects').delete().eq('id', id)
     if (!error) {
       projects.value = projects.value.filter(p => p.id !== id)
       selectedProject.value = null
@@ -181,7 +175,7 @@ const deleteProject = async (id: number) => {
 const addProject = async () => {
   if (!newProject.value.name.trim() || !newProject.value.client.trim()) return
   
-  const { data, error } = await supabase.from('projects').insert({
+  const { data, error } = await supabase.from('billing_projects').insert({
     name: newProject.value.name.trim(),
     client: newProject.value.client.trim(),
     status: 'Planifié',
@@ -196,6 +190,8 @@ const addProject = async () => {
     showAddModal.value = false
   }
 }
+const isEditing = ref(false)
+const editingProjectData = ref<any>(null)
 
 const startEditing = () => {
   if (!selectedProject.value) return
@@ -211,13 +207,13 @@ const cancelEditing = () => {
 const saveProjectUpdate = async () => {
   if (!editingProjectData.value) return
   
-  const { error } = await supabase.from('projects').update({
+  const { error } = await supabase.from('billing_projects').update({
     name: editingProjectData.value.name,
     client: editingProjectData.value.client,
-    deadline: editingProjectData.value.deadline,
-    priority: editingProjectData.value.priority,
+    status: editingProjectData.value.status,
     progress: editingProjectData.value.progress,
-    status: editingProjectData.value.status
+    deadline: editingProjectData.value.deadline,
+    priority: editingProjectData.value.priority
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -244,8 +240,8 @@ const getStatusColor = (status: string) => {
   <div class="flex-1 space-y-6 p-6 bg-slate-50/30 min-h-screen relative">
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
-        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Suivi Vitrine</h2>
-        <p class="text-muted-foreground text-xs">Gérez et mettez à jour vos projets vitrines en temps réel.</p>
+        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Suivi Facturation</h2>
+        <p class="text-muted-foreground text-xs">Gérez et mettez à jour vos dossiers de facturation en temps réel.</p>
       </div>
       <Button size="sm" @click="showAddModal = true" class="bg-indigo-600 hover:bg-indigo-500 shadow-sm">
         <Plus class="mr-1.5 h-3.5 w-3.5" /> Nouveau
@@ -254,13 +250,13 @@ const getStatusColor = (status: string) => {
 
     <!-- Search and Filters -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div class="flex overflow-x-auto no-scrollbar gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit shrink-0">
+      <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
         <button 
           v-for="filter in ['Tous', 'En cours', 'Terminés', 'Traité', 'Nouveaux']" 
           :key="filter"
           @click="activeFilter = filter"
-          class="px-4 py-2 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap"
-          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
+          class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
+          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
         >
           {{ filter }}
         </button>
@@ -271,7 +267,7 @@ const getStatusColor = (status: string) => {
         <input 
           v-model="searchQuery"
           type="text"
-          placeholder="Rechercher un projet, client..."
+          placeholder="Rechercher un dossier, client..."
           class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400 shadow-xs"
         />
       </div>
@@ -354,7 +350,7 @@ const getStatusColor = (status: string) => {
     </div>
 
     <!-- Modal: Project Details & Multiple Notes -->
-    <div v-if="selectedProject" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="selectedProject = null">
+    <div v-if="selectedProject" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="selectedProject = null; isEditing = false">
       <div class="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" @click.stop>
         
         <!-- Modal Header -->
@@ -367,10 +363,10 @@ const getStatusColor = (status: string) => {
             <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
           </div>
           <div class="flex items-center gap-1">
-            <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
+            <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le dossier">
               <Pencil class="h-4 w-4" />
             </button>
-            <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
+            <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le dossier">
               <Trash2 class="h-5 w-5" />
             </button>
             <button @click="selectedProject = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
@@ -385,7 +381,7 @@ const getStatusColor = (status: string) => {
           <!-- Edit Form -->
           <div v-if="isEditing" class="space-y-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">Nom du Projet</label>
+              <label class="text-xs font-bold text-slate-700">Nom du Dossier</label>
               <input v-model="editingProjectData.name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
             </div>
             <div class="space-y-1">
@@ -431,29 +427,30 @@ const getStatusColor = (status: string) => {
           <!-- Info Grid (View Mode) -->
           <div v-else class="space-y-6">
             <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div class="space-y-1">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
-              <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
+                <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
+                </div>
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
+                <div>
+                  <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
+                    {{ selectedProject.priority }}
+                  </Badge>
+                </div>
               </div>
             </div>
-            <div class="space-y-1">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
-              <div>
-                <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
-                  {{ selectedProject.priority }}
-                </Badge>
-              </div>
-            </div>
-          </div>
 
-          <!-- Progression -->
-          <div class="space-y-2">
-            <div class="flex justify-between text-sm">
-              <span class="text-slate-600 font-bold">Progression du projet</span>
-              <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+            <!-- Progression -->
+            <div class="space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-600 font-bold">Progression du dossier</span>
+                <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+              </div>
+              <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
             </div>
-            <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
           </div>
 
           <!-- Notes Section -->
@@ -506,7 +503,6 @@ const getStatusColor = (status: string) => {
 
       </div>
     </div>
-  </div>
 
     <!-- Modal: Nouveau Projet -->
     <div v-if="showAddModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showAddModal = false">
@@ -514,7 +510,7 @@ const getStatusColor = (status: string) => {
         
         <!-- Modal Header -->
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h3 class="text-lg font-bold text-slate-900">Créer un Nouveau Projet Vitrine</h3>
+          <h3 class="text-lg font-bold text-slate-900">Créer un Nouveau Dossier de Facturation</h3>
           <button @click="showAddModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X class="h-5 w-5" />
           </button>
@@ -523,10 +519,10 @@ const getStatusColor = (status: string) => {
         <!-- Modal Content -->
         <div class="p-6 space-y-4">
           <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-700">Nom du Projet</label>
+            <label class="text-xs font-bold text-slate-700">Nom du Dossier</label>
             <input 
               v-model="newProject.name"
-              placeholder="Ex: Refonte Site MWCREA"
+              placeholder="Ex: Facturation Client X"
               class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium"
             />
           </div>
@@ -567,7 +563,7 @@ const getStatusColor = (status: string) => {
         <!-- Modal Footer -->
         <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
           <Button variant="ghost" size="sm" @click="showAddModal = false">Annuler</Button>
-          <Button size="sm" @click="addProject" class="bg-indigo-600 hover:bg-indigo-500 text-white">Créer le Projet Vitrine</Button>
+          <Button size="sm" @click="addProject" class="bg-indigo-600 hover:bg-indigo-500 text-white">Créer le Dossier</Button>
         </div>
 
       </div>

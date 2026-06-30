@@ -189,3 +189,36 @@ CREATE POLICY "Allow all write cust" ON customers FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Allow all read tx" ON transactions FOR SELECT USING (true);
 CREATE POLICY "Allow all write tx" ON transactions FOR INSERT WITH CHECK (true);
+
+-- 8. Table: Billing Projects
+CREATE TABLE IF NOT EXISTS billing_projects (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    client TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Planifié',
+    progress INTEGER DEFAULT 0,
+    deadline TEXT,
+    priority TEXT DEFAULT 'Moyenne',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 9. Table: Billing Project Notes
+CREATE TABLE IF NOT EXISTS billing_project_notes (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER REFERENCES billing_projects(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    date TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE billing_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_project_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all read" ON billing_projects FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON billing_projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON billing_projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON billing_projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read" ON billing_project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write" ON billing_project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all delete" ON billing_project_notes FOR DELETE USING (true);

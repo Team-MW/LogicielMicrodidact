@@ -13,6 +13,7 @@ import Domains from '@/views/Domains.vue'
 import InstallerField from '@/views/InstallerField.vue'
 import InstallerReport from '@/views/InstallerReport.vue'
 import CommercialTasks from '@/views/CommercialTasks.vue'
+import BillingTracking from '@/views/BillingTracking.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -104,6 +105,12 @@ const router = createRouter({
       path: '/commercial',
       name: 'commercial',
       component: CommercialTasks,
+      meta: { layout: 'admin' }
+    },
+    {
+      path: '/billing',
+      name: 'billing',
+      component: BillingTracking,
       meta: { layout: 'admin' }
     }
   ]

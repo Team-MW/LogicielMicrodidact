@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Loader2 } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -16,6 +16,7 @@ interface Project {
   deadline: string
   priority: string
   team: string[]
+  stripe_customer_id?: string
 }
 
 interface Note {
@@ -33,6 +34,11 @@ const selectedProject = ref<Project | null>(null)
 const newNoteText = ref('')
 const searchQuery = ref('')
 const refreshInterval = ref<any>(null)
+
+// Stripe State
+const stripeCustomers = ref<any[]>([])
+const stripeInvoices = ref<any[]>([])
+const isLoadingInvoices = ref(false)
 
 const showAddModal = ref(false)
 const newProject = ref({
@@ -84,6 +90,7 @@ const parseTextWithLinks = (text: string) => {
 onMounted(() => {
   fetchProjects()
   fetchNotes()
+  fetchStripeCustomers()
 
   // Système de récupération automatique si pas de données (toutes les 3s)
   refreshInterval.value = setInterval(() => {
@@ -92,6 +99,32 @@ onMounted(() => {
     }
   }, 3000)
 })
+
+const fetchStripeCustomers = async () => {
+  try {
+    const response = await fetch('/api/stripe/customers')
+    if (response.ok) {
+      stripeCustomers.value = await response.json()
+    }
+  } catch (error) {
+    console.error('Error fetching Stripe customers:', error)
+  }
+}
+
+const fetchStripeInvoices = async (customerId: string) => {
+  isLoadingInvoices.value = true
+  stripeInvoices.value = []
+  try {
+    const response = await fetch(`/api/stripe/customer-invoices?customerId=${customerId}`)
+    if (response.ok) {
+      stripeInvoices.value = await response.json()
+    }
+  } catch (error) {
+    console.error('Error fetching Stripe invoices:', error)
+  } finally {
+    isLoadingInvoices.value = false
+  }
+}
 
 onUnmounted(() => {
   if (refreshInterval.value) clearInterval(refreshInterval.value)
@@ -194,16 +227,47 @@ const addProject = async () => {
 }
 const isEditing = ref(false)
 const editingProjectData = ref<any>(null)
+const stripeCustomerSearch = ref('')
+const isStripeDropdownOpen = ref(false)
+
+const filteredStripeCustomers = computed(() => {
+  if (!stripeCustomerSearch.value) return stripeCustomers.value
+  const query = stripeCustomerSearch.value.toLowerCase()
+  return stripeCustomers.value.filter(c => 
+    (c.name && c.name.toLowerCase().includes(query)) || 
+    (c.email && c.email.toLowerCase().includes(query))
+  )
+})
+
+const selectStripeCustomer = (custId: string | null) => {
+  if (!editingProjectData.value) return
+  editingProjectData.value.stripe_customer_id = custId
+  isStripeDropdownOpen.value = false
+  if (custId) {
+    const cust = stripeCustomers.value.find(c => c.id === custId)
+    stripeCustomerSearch.value = cust?.name || cust?.email || cust?.id || ''
+  } else {
+    stripeCustomerSearch.value = ''
+  }
+}
 
 const startEditing = () => {
   if (!selectedProject.value) return
   editingProjectData.value = { ...selectedProject.value }
   isEditing.value = true
+  
+  if (editingProjectData.value.stripe_customer_id) {
+    const cust = stripeCustomers.value.find(c => c.id === editingProjectData.value.stripe_customer_id)
+    stripeCustomerSearch.value = cust?.name || cust?.email || cust?.id || ''
+  } else {
+    stripeCustomerSearch.value = ''
+  }
 }
 
 const cancelEditing = () => {
   isEditing.value = false
   editingProjectData.value = null
+  isStripeDropdownOpen.value = false
 }
 
 const saveProjectUpdate = async () => {
@@ -215,7 +279,8 @@ const saveProjectUpdate = async () => {
     status: editingProjectData.value.status,
     progress: editingProjectData.value.progress,
     deadline: editingProjectData.value.deadline,
-    priority: editingProjectData.value.priority
+    priority: editingProjectData.value.priority,
+    stripe_customer_id: editingProjectData.value.stripe_customer_id || null
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -223,6 +288,9 @@ const saveProjectUpdate = async () => {
     if (index !== -1) {
       projects.value[index] = { ...editingProjectData.value }
       selectedProject.value = { ...editingProjectData.value }
+      if (selectedProject.value.stripe_customer_id) {
+        fetchStripeInvoices(selectedProject.value.stripe_customer_id)
+      }
     }
     isEditing.value = false
     editingProjectData.value = null
@@ -279,7 +347,7 @@ const getStatusColor = (status: string) => {
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <Card v-for="project in filteredProjects" :key="project.id" 
         class="flex flex-col bg-white border-slate-100/80 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl overflow-hidden cursor-pointer"
-        @click="selectedProject = project"
+        @click="() => { selectedProject = project; if (project.stripe_customer_id) fetchStripeInvoices(project.stripe_customer_id) }"
       >
         <CardHeader class="p-4 pb-2 space-y-1">
           <div class="flex items-center justify-between">
@@ -420,6 +488,32 @@ const getStatusColor = (status: string) => {
                 <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
               </div>
             </div>
+            <div class="space-y-1 relative">
+              <label class="text-xs font-bold text-slate-700">Lier à un client Stripe (Recherche)</label>
+              <input 
+                v-model="stripeCustomerSearch" 
+                @focus="isStripeDropdownOpen = true"
+                placeholder="Tapez le nom ou l'email du client..."
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all"
+              />
+              <div v-if="isStripeDropdownOpen" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-60 overflow-y-auto">
+                <div @click="selectStripeCustomer(null)" class="px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                  ❌ Ne lier à aucun client
+                </div>
+                <div 
+                  v-for="cust in filteredStripeCustomers" 
+                  :key="cust.id" 
+                  @click="selectStripeCustomer(cust.id)"
+                  class="px-3 py-2 text-sm text-slate-900 hover:bg-indigo-50 cursor-pointer flex flex-col"
+                >
+                  <span class="font-bold">{{ cust.name || 'Sans Nom' }}</span>
+                  <span class="text-xs text-slate-500">{{ cust.email || cust.id }}</span>
+                </div>
+                <div v-if="filteredStripeCustomers.length === 0" class="px-3 py-4 text-center text-xs text-slate-400">
+                  Aucun client trouvé
+                </div>
+              </div>
+            </div>
             <div class="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
               <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
@@ -453,6 +547,50 @@ const getStatusColor = (status: string) => {
               </div>
               <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
             </div>
+          </div>
+
+          <!-- Stripe Invoices Section -->
+          <div v-if="selectedProject.stripe_customer_id" class="space-y-3">
+            <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5 border-t border-slate-100 pt-6">
+              <span class="bg-indigo-100 text-indigo-600 p-1 rounded-md">💳</span> Historique des Paiements (Stripe)
+            </h4>
+            
+            <div v-if="isLoadingInvoices" class="flex justify-center p-4">
+              <Loader2 class="h-6 w-6 animate-spin text-indigo-500" />
+            </div>
+            
+            <div v-else-if="stripeInvoices.length > 0" class="space-y-2">
+              <div v-for="inv in stripeInvoices" :key="inv.id" class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+                <div class="flex items-center gap-3">
+                  <div :class="[
+                    'p-2 rounded-lg',
+                    inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
+                    inv.status === 'open' ? 'bg-amber-50 text-amber-600' :
+                    'bg-rose-50 text-rose-600'
+                  ]">
+                    <FileText class="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold text-slate-900">
+                      {{ (inv.total / 100).toFixed(2) }} {{ inv.currency.toUpperCase() }}
+                    </p>
+                    <p class="text-xs text-slate-500">
+                      {{ new Date(inv.created * 1000).toLocaleDateString() }} - <a :href="inv.hosted_invoice_url" target="_blank" class="text-indigo-600 hover:underline">Voir facture</a>
+                    </p>
+                  </div>
+                </div>
+                <Badge :variant="inv.status === 'paid' ? 'default' : inv.status === 'open' ? 'secondary' : 'destructive'">
+                  {{ inv.status === 'paid' ? 'Payé' : inv.status === 'open' ? 'En attente' : 'Échoué' }}
+                </Badge>
+              </div>
+            </div>
+            
+            <div v-else class="text-center py-6 text-slate-400 text-sm italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              Aucun paiement trouvé pour ce client sur Stripe.
+            </div>
+          </div>
+          <div v-else class="text-center py-4 border-t border-slate-100">
+            <p class="text-[10px] text-slate-400 font-medium">Ce logiciel n'est pas lié à un client Stripe.</p>
           </div>
 
           <!-- Notes Section -->

@@ -16,7 +16,9 @@ import {
   RefreshCw,
   Plus,
   Loader2,
-  Pencil
+  Pencil,
+  CreditCard,
+  Copy
 } from 'lucide-vue-next'
 import {
   Dialog,
@@ -54,6 +56,50 @@ const newSite = ref({
 const editingSite = ref<any>(null)
 const isEditingDialogVisible = ref(false)
 const isUpdating = ref(false)
+
+// Subscription State
+const isSubscriptionDialogOpen = ref(false)
+const isCreatingSubscription = ref(false)
+const selectedSiteForSubscription = ref<any>(null)
+const subscriptionDetails = ref({
+  amount: 50,
+  description: 'Maintenance Mensuelle'
+})
+const generatedPaymentLink = ref('')
+
+const openSubscriptionDialog = (site: any) => {
+  selectedSiteForSubscription.value = site
+  subscriptionDetails.value.description = `Maintenance - ${site.name}`
+  generatedPaymentLink.value = ''
+  isSubscriptionDialogOpen.value = true
+}
+
+const handleCreateSubscription = async () => {
+  if (!selectedSiteForSubscription.value) return
+  isCreatingSubscription.value = true
+  try {
+    const customer = customers.value.find(c => c.id === selectedSiteForSubscription.value.customerId)
+    const response = await fetch('/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: subscriptionDetails.value.amount,
+        description: subscriptionDetails.value.description,
+        customerEmail: customer ? customer.email : undefined
+      })
+    })
+    
+    if (!response.ok) throw new Error('Erreur lors de la création')
+    
+    const data = await response.json()
+    generatedPaymentLink.value = data.url
+  } catch (error) {
+    console.error('Erreur', error)
+    alert("Impossible de créer l'abonnement. Vérifiez vos clés Stripe.")
+  } finally {
+    isCreatingSubscription.value = false
+  }
+}
 
 onMounted(async () => {
   await fetchData()
@@ -267,6 +313,62 @@ const handleUpdateWebsite = async () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <!-- Subscription Dialog -->
+        <Dialog v-model:open="isSubscriptionDialogOpen">
+          <DialogContent class="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Créer un abonnement (Stripe)</DialogTitle>
+              <DialogDescription>
+                Générer un lien de paiement sécurisé pour {{ selectedSiteForSubscription?.name }}
+              </DialogDescription>
+            </DialogHeader>
+            <div class="grid gap-4 py-4" v-if="!generatedPaymentLink">
+              <div class="grid gap-2">
+                <Label>Montant mensuel (€)</Label>
+                <Input type="number" v-model="subscriptionDetails.amount" placeholder="50" min="1" />
+              </div>
+              <div class="grid gap-2">
+                <Label>Libellé de l'abonnement</Label>
+                <Input v-model="subscriptionDetails.description" />
+              </div>
+              <p class="text-[10px] text-muted-foreground bg-slate-50 p-2 rounded border border-slate-100">
+                Un lien de paiement sécurisé sera généré. Le client ({{ getCustomerName(selectedSiteForSubscription?.customerId) }}) pourra payer par carte bancaire ou prélèvement SEPA, et sera prélevé tous les mois.
+              </p>
+            </div>
+            
+            <div v-else class="space-y-4 py-4">
+              <div class="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm font-medium border border-emerald-200 flex items-center gap-2">
+                <CreditCard class="h-4 w-4" /> Abonnement prêt !
+              </div>
+              <div class="space-y-2">
+                <Label>Lien à envoyer au client :</Label>
+                <div class="flex gap-2">
+                  <Input :value="generatedPaymentLink" readonly class="text-xs bg-slate-50 font-mono" />
+                  <Button size="icon" variant="outline" @click="() => { navigator.clipboard.writeText(generatedPaymentLink); alert('Lien copié !') }" title="Copier le lien">
+                    <Copy class="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div class="flex justify-end pt-2">
+                <Button variant="link" class="text-xs text-indigo-600" @click="() => window.open(generatedPaymentLink, '_blank')">
+                  Ouvrir le lien moi-même &rarr;
+                </Button>
+              </div>
+            </div>
+
+            <DialogFooter v-if="!generatedPaymentLink">
+              <Button :disabled="isCreatingSubscription || !subscriptionDetails.amount || !subscriptionDetails.description" @click="handleCreateSubscription" class="bg-indigo-600 hover:bg-indigo-500">
+                <Loader2 v-if="isCreatingSubscription" class="mr-2 h-4 w-4 animate-spin" />
+                <CreditCard v-else class="mr-2 h-4 w-4" />
+                Générer le lien
+              </Button>
+            </DialogFooter>
+            <DialogFooter v-else>
+              <Button @click="isSubscriptionDialogOpen = false" variant="outline">Fermer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
 
@@ -351,6 +453,9 @@ const handleUpdateWebsite = async () => {
           <div class="mt-6 flex gap-2">
             <Button variant="outline" class="w-full text-xs h-8">
               <BarChart3 class="mr-2 h-3 w-3" /> Report
+            </Button>
+            <Button variant="outline" class="w-full text-xs h-8 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200 shadow-none" @click="openSubscriptionDialog(site)">
+              <CreditCard class="mr-2 h-3 w-3" /> Abo
             </Button>
             <Button variant="ghost" size="icon" class="h-8 w-8 text-indigo-600 hover:bg-indigo-50" @click="openEditDialog(site)" title="Modifier">
               <Pencil class="h-4 w-4" />

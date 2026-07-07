@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil } from 'lucide-vue-next'
-
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, CreditCard, Link as LinkIcon, Receipt } from 'lucide-vue-next'
 interface Project {
   id: number
   name: string
@@ -39,6 +38,32 @@ const newProject = ref({
   deadline: '',
   priority: 'Moyenne'
 })
+
+// Stripe State
+const activeTab = ref('Dossiers') // 'Dossiers', 'Abonnements', 'Liens', 'Factures'
+const stripeLinks = ref<any[]>([])
+const stripeSubscriptions = ref<any[]>([])
+const stripeInvoices = ref<any[]>([])
+const isLoadingStripe = ref(false)
+
+const fetchStripeData = async () => {
+  isLoadingStripe.value = true
+  try {
+    const [linksRes, subsRes, invRes] = await Promise.all([
+      fetch('/api/stripe/payment-links'),
+      fetch('/api/stripe/subscriptions'),
+      fetch('/api/stripe/invoices')
+    ])
+    if (linksRes.ok) stripeLinks.value = await linksRes.json()
+    if (subsRes.ok) stripeSubscriptions.value = await subsRes.json()
+    if (invRes.ok) stripeInvoices.value = await invRes.json()
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données Stripe', error)
+  } finally {
+    isLoadingStripe.value = false
+  }
+}
+
 
 const fetchProjects = async () => {
   const { data, error } = await supabase.from('billing_projects').select('*').order('created_at', { ascending: false })
@@ -82,6 +107,7 @@ const parseTextWithLinks = (text: string) => {
 onMounted(() => {
   fetchProjects()
   fetchNotes()
+  fetchStripeData()
 
   // Système de récupération automatique si pas de données (toutes les 3s)
   refreshInterval.value = setInterval(() => {
@@ -241,12 +267,52 @@ const getStatusColor = (status: string) => {
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
         <h2 class="text-2xl font-bold tracking-tight text-slate-900">Suivi Facturation</h2>
-        <p class="text-muted-foreground text-xs">Gérez et mettez à jour vos dossiers de facturation en temps réel.</p>
+        <p class="text-muted-foreground text-xs">Gérez vos dossiers de facturation et suivez vos paiements Stripe.</p>
       </div>
-      <Button size="sm" @click="showAddModal = true" class="bg-indigo-600 hover:bg-indigo-500 shadow-sm">
-        <Plus class="mr-1.5 h-3.5 w-3.5" /> Nouveau
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button size="sm" @click="fetchStripeData" variant="outline" class="bg-white" :disabled="isLoadingStripe">
+          Actualiser Stripe
+        </Button>
+        <Button v-if="activeTab === 'Dossiers'" size="sm" @click="showAddModal = true" class="bg-indigo-600 hover:bg-indigo-500 shadow-sm">
+          <Plus class="mr-1.5 h-3.5 w-3.5" /> Nouveau Dossier
+        </Button>
+      </div>
     </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="flex space-x-1 bg-slate-200/50 p-1 rounded-xl w-fit">
+      <button 
+        @click="activeTab = 'Dossiers'" 
+        :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2', activeTab === 'Dossiers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
+      >
+        <FileText class="h-4 w-4" />
+        Dossiers Internes
+      </button>
+      <button 
+        @click="activeTab = 'Abonnements'" 
+        :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2', activeTab === 'Abonnements' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
+      >
+        <CreditCard class="h-4 w-4" />
+        Abonnements Stripe
+      </button>
+      <button 
+        @click="activeTab = 'Liens'" 
+        :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2', activeTab === 'Liens' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
+      >
+        <LinkIcon class="h-4 w-4" />
+        Liens de Paiement
+      </button>
+      <button 
+        @click="activeTab = 'Factures'" 
+        :class="['px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2', activeTab === 'Factures' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700']"
+      >
+        <Receipt class="h-4 w-4" />
+        Historique Factures
+      </button>
+    </div>
+
+    <!-- TAB: Dossiers Internes -->
+    <div v-if="activeTab === 'Dossiers'" class="space-y-6">
 
     <!-- Search and Filters -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -347,6 +413,112 @@ const getStatusColor = (status: string) => {
           </div>
         </CardContent>
       </Card>
+    </div>
+    </div> <!-- End Tab Dossiers -->
+
+    <!-- TAB: Abonnements -->
+    <div v-if="activeTab === 'Abonnements'" class="space-y-4">
+      <div v-if="isLoadingStripe" class="text-center py-10 text-slate-500">Chargement des abonnements Stripe...</div>
+      <div v-else-if="!stripeSubscriptions.length" class="text-center py-10 text-slate-500 bg-white rounded-xl border border-slate-100">Aucun abonnement actif trouvé.</div>
+      <div v-else class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <Card v-for="sub in stripeSubscriptions" :key="sub.id" class="bg-white border-slate-100 rounded-xl overflow-hidden shadow-sm">
+          <CardHeader class="p-4 pb-2 bg-slate-50/50 border-b border-slate-50">
+            <div class="flex justify-between items-start">
+              <Badge variant="outline" class="bg-emerald-50 text-emerald-700 border-emerald-200">Actif</Badge>
+              <span class="text-xs font-bold text-slate-900">{{ (sub.plan.amount / 100).toFixed(2) }} {{ sub.plan.currency.toUpperCase() }} / {{ sub.plan.interval }}</span>
+            </div>
+            <CardTitle class="text-base text-slate-900 font-bold mt-2 truncate">{{ sub.customer?.name || sub.customer?.email || 'Client inconnu' }}</CardTitle>
+            <CardDescription class="text-xs truncate">{{ sub.customer?.email }}</CardDescription>
+          </CardHeader>
+          <CardContent class="p-4 flex flex-col gap-2">
+            <div class="text-xs flex justify-between">
+              <span class="text-slate-500">Produit</span>
+              <span class="font-medium text-slate-900 truncate max-w-[150px]">{{ sub.plan?.product?.name || 'Abonnement' }}</span>
+            </div>
+            <div class="text-xs flex justify-between">
+              <span class="text-slate-500">Prochaine facture</span>
+              <span class="font-medium text-slate-900">{{ new Date(sub.current_period_end * 1000).toLocaleDateString('fr-FR') }}</span>
+            </div>
+            <div class="mt-2 text-right">
+              <a :href="`https://dashboard.stripe.com/subscriptions/${sub.id}`" target="_blank" class="text-[10px] text-indigo-600 font-bold hover:underline">Voir sur Stripe &rarr;</a>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+
+    <!-- TAB: Liens de Paiement -->
+    <div v-if="activeTab === 'Liens'" class="space-y-4">
+      <div v-if="isLoadingStripe" class="text-center py-10 text-slate-500">Chargement des liens de paiement...</div>
+      <div v-else-if="!stripeLinks.length" class="text-center py-10 text-slate-500 bg-white rounded-xl border border-slate-100">Aucun lien de paiement actif.</div>
+      <div v-else class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <Card v-for="link in stripeLinks" :key="link.id" class="bg-white border-slate-100 rounded-xl overflow-hidden shadow-sm">
+          <CardHeader class="p-4 pb-2">
+            <div class="flex items-center gap-2">
+              <LinkIcon class="h-4 w-4 text-slate-400" />
+              <CardTitle class="text-sm text-slate-900 font-bold truncate flex-1">Lien de paiement</CardTitle>
+              <Badge v-if="link.active" variant="outline" class="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Actif</Badge>
+            </div>
+          </CardHeader>
+          <CardContent class="p-4 pt-2 flex flex-col gap-3">
+            <div class="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg font-medium truncate">
+              <a :href="link.url" target="_blank" class="hover:text-indigo-600 hover:underline">{{ link.url }}</a>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-500">Créé le {{ new Date(link.created * 1000).toLocaleDateString('fr-FR') }}</span>
+              <Button size="sm" variant="outline" class="h-7 text-xs bg-white" @click="() => { navigator.clipboard.writeText(link.url); alert('Lien copié !') }">Copier le lien</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+
+    <!-- TAB: Factures -->
+    <div v-if="activeTab === 'Factures'" class="space-y-4">
+      <div v-if="isLoadingStripe" class="text-center py-10 text-slate-500">Chargement de l'historique...</div>
+      <div v-else-if="!stripeInvoices.length" class="text-center py-10 text-slate-500 bg-white rounded-xl border border-slate-100">Aucune facture trouvée.</div>
+      <div v-else class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs text-slate-500 bg-slate-50/80 uppercase">
+              <tr>
+                <th class="px-4 py-3 font-semibold">Numéro</th>
+                <th class="px-4 py-3 font-semibold">Client</th>
+                <th class="px-4 py-3 font-semibold">Montant</th>
+                <th class="px-4 py-3 font-semibold">Statut</th>
+                <th class="px-4 py-3 font-semibold">Date</th>
+                <th class="px-4 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="invoice in stripeInvoices" :key="invoice.id" class="hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-3 font-medium text-slate-900">{{ invoice.number }}</td>
+                <td class="px-4 py-3">{{ invoice.customer_name || invoice.customer_email || 'Client inconnu' }}</td>
+                <td class="px-4 py-3 font-bold">{{ (invoice.amount_due / 100).toFixed(2) }} {{ invoice.currency.toUpperCase() }}</td>
+                <td class="px-4 py-3">
+                  <Badge :variant="invoice.status === 'paid' ? 'outline' : 'secondary'" 
+                    :class="[
+                      invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                      invoice.status === 'open' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100'
+                    ]"
+                  >
+                    {{ invoice.status === 'paid' ? 'Payée' : invoice.status === 'open' ? 'En attente' : invoice.status }}
+                  </Badge>
+                </td>
+                <td class="px-4 py-3 text-slate-500">{{ new Date(invoice.created * 1000).toLocaleDateString('fr-FR') }}</td>
+                <td class="px-4 py-3 text-right">
+                  <a v-if="invoice.hosted_invoice_url" :href="invoice.hosted_invoice_url" target="_blank" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium text-xs">
+                    Voir la facture
+                  </a>
+                  <a v-if="invoice.invoice_pdf" :href="invoice.invoice_pdf" target="_blank" class="ml-3 text-slate-500 hover:text-slate-800 hover:underline font-medium text-xs inline-flex items-center gap-1">
+                    PDF
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- Modal: Project Details & Multiple Notes -->

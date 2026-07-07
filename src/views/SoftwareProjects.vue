@@ -288,8 +288,9 @@ const saveProjectUpdate = async () => {
     if (index !== -1) {
       projects.value[index] = { ...editingProjectData.value }
       selectedProject.value = { ...editingProjectData.value }
-      if (selectedProject.value.stripe_customer_id) {
-        fetchStripeInvoices(selectedProject.value.stripe_customer_id)
+      const stripeId = selectedProject.value?.stripe_customer_id
+      if (stripeId) {
+        fetchStripeInvoices(stripeId)
       }
     }
     isEditing.value = false
@@ -426,17 +427,17 @@ const getStatusColor = (status: string) => {
         <!-- Modal Header -->
         <div class="p-6 border-b border-slate-100 flex items-start justify-between">
           <div class="space-y-1">
-            <Badge variant="outline" :class="[getStatusColor(selectedProject.status), 'text-xs px-2 py-0.5 font-bold border']">
-              {{ selectedProject.status === 'Planifié' ? 'Nouveau' : selectedProject.status }}
+            <Badge variant="outline" :class="[getStatusColor(selectedProject?.status || ''), 'text-xs px-2 py-0.5 font-bold border']">
+              {{ selectedProject?.status === 'Planifié' ? 'Nouveau' : selectedProject?.status }}
             </Badge>
-            <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject.name }}</h3>
-            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
+            <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject?.name }}</h3>
+            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject?.client || '')"></span></p>
           </div>
           <div class="flex items-center gap-1">
             <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
               <Pencil class="h-4 w-4" />
             </button>
-            <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
+            <button @click="deleteProject(selectedProject?.id || 0)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
               <Trash2 class="h-5 w-5" />
             </button>
             <button @click="selectedProject = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
@@ -526,14 +527,14 @@ const getStatusColor = (status: string) => {
               <div class="space-y-1">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
                 <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                  <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
+                  <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject?.deadline }}
                 </div>
               </div>
               <div class="space-y-1">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
                 <div>
-                  <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
-                    {{ selectedProject.priority }}
+                  <Badge :variant="selectedProject?.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
+                    {{ selectedProject?.priority }}
                   </Badge>
                 </div>
               </div>
@@ -543,14 +544,14 @@ const getStatusColor = (status: string) => {
             <div class="space-y-2">
               <div class="flex justify-between text-sm">
                 <span class="text-slate-600 font-bold">Progression du projet</span>
-                <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+                <span class="font-black text-indigo-600">{{ selectedProject?.progress }}%</span>
               </div>
-              <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
+              <Progress :model-value="selectedProject?.progress" class="h-2 bg-slate-100" />
             </div>
           </div>
 
           <!-- Stripe Invoices Section -->
-          <div v-if="selectedProject.stripe_customer_id" class="space-y-3">
+          <div v-if="selectedProject?.stripe_customer_id" class="space-y-3">
             <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5 border-t border-slate-100 pt-6">
               <span class="bg-indigo-100 text-indigo-600 p-1 rounded-md">💳</span> Historique des Paiements (Stripe)
             </h4>
@@ -596,7 +597,7 @@ const getStatusColor = (status: string) => {
           <!-- Notes Section -->
           <div class="space-y-3">
             <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <FileText class="h-4 w-4 text-slate-500" /> Notes & Suivi ({{ projectNotes[selectedProject.id]?.length || 0 }})
+              <FileText class="h-4 w-4 text-slate-500" /> Notes & Suivi ({{ selectedProject?.id ? (projectNotes[selectedProject.id]?.length || 0) : 0 }})
             </h4>
 
             <!-- Add Note Input -->
@@ -613,7 +614,7 @@ const getStatusColor = (status: string) => {
             </div>
 
             <!-- Notes List -->
-            <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+            <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1" v-if="selectedProject?.id">
               <div v-for="(note, index) in projectNotes[selectedProject.id]" :key="note.id || index" 
                 class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1 relative group"
               >
@@ -622,7 +623,7 @@ const getStatusColor = (status: string) => {
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
                     <button 
-                      @click="deleteNote(note.id, selectedProject.id)" 
+                      @click="deleteNote(note.id, selectedProject?.id || 0)" 
                       class="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
                       title="Supprimer la note"
                     >

@@ -6,26 +6,54 @@ import { BarChart3, Users, DollarSign, Package } from 'lucide-vue-next'
 import { supabase } from '@/lib/supabase'
 
 const stats = ref([
-  { name: 'Ventes Totales', value: '0.00 €', change: 'En direct', icon: DollarSign, color: 'text-emerald-600' },
+  { name: 'Ventes Totales (Stripe)', value: '0.00 €', change: 'En direct', icon: DollarSign, color: 'text-emerald-600' },
   { name: 'Clients Actifs', value: '0', change: 'En direct', icon: Users, color: 'text-blue-600' },
   { name: 'Projets Actifs', value: '0', change: 'En direct', icon: Package, color: 'text-orange-600' },
   { name: 'Taux de Conversion', value: '0.0%', change: 'En direct', icon: BarChart3, color: 'text-purple-600' },
 ])
 
+const chartData = ref(Array(12).fill(0))
+const maxMonthlySale = ref(1) // Avoid division by zero
+const isStripeLoading = ref(true)
+
 onMounted(async () => {
   try {
-    // 1. Ventes Totales
-    const { data: transData } = await supabase.from('transactions').select('amount')
-    if (transData) {
-      const totalSales = transData.reduce((acc, curr) => {
-        // Remove € and spaces if string
-        let val = curr.amount
-        if (typeof val === 'string') {
-          val = val.replace(/[^0-9.-]+/g, "")
-        }
-        return acc + (parseFloat(val) || 0)
-      }, 0)
-      stats.value[0].value = `${totalSales.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+    // 1. Ventes Totales (Stripe + Transactions locales si besoin, on priorise Stripe ici)
+    try {
+      const res = await fetch('/api/stripe/invoices')
+      const invoices = await res.json()
+      
+      if (Array.isArray(invoices)) {
+        let totalStripeSales = 0
+        const monthlySales = Array(12).fill(0)
+        
+        invoices.forEach(inv => {
+          if (inv.status === 'paid') {
+            const amount = inv.amount_paid / 100 // Convertir les centimes en euros
+            totalStripeSales += amount
+            
+            // Calculer pour le graphique
+            const date = new Date(inv.created * 1000)
+            // On s'assure qu'on ne prend que l'année courante ou les 12 derniers mois
+            const currentYear = new Date().getFullYear()
+            if (date.getFullYear() === currentYear) {
+              const month = date.getMonth() // 0 to 11
+              monthlySales[month] += amount
+            }
+          }
+        })
+        
+        stats.value[0].value = `${totalStripeSales.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+        
+        // Mise à jour du graphique
+        chartData.value = monthlySales
+        const max = Math.max(...monthlySales)
+        maxMonthlySale.value = max > 0 ? max : 1
+      }
+    } catch (e) {
+      console.error('Erreur Stripe Dashboard:', e)
+    } finally {
+      isStripeLoading.value = false
     }
 
     // 2. Clients Actifs
@@ -82,12 +110,12 @@ onMounted(async () => {
         </CardHeader>
         <CardContent class="pl-2">
           <div class="h-[300px] w-full flex items-end justify-between px-4 pb-2 border-b">
-            <div v-for="(h, i) in [40, 60, 45, 90, 100, 80, 50, 70, 85, 60, 75, 95]" :key="i" 
+            <div v-for="(val, i) in chartData" :key="i" 
               class="w-[6%] bg-indigo-500/20 rounded-t-lg transition-all hover:bg-indigo-600 relative group"
-              :style="{ height: h + '%' }"
+              :style="{ height: Math.max((val / maxMonthlySale) * 100, 2) + '%' }"
             >
               <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                {{ (h * 125).toLocaleString() }} €
+                {{ val.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} €
               </div>
             </div>
           </div>

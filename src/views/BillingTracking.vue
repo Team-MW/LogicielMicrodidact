@@ -141,9 +141,7 @@ const filteredProjects = computed(() => {
   return base
 })
 
-const formatCurrency = (amount: number, currency: string) => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
-}
+
 
 const copyLink = (url: string) => {
   if (typeof navigator !== 'undefined' && navigator.clipboard) {

@@ -18,7 +18,10 @@ import {
   Loader2,
   Pencil,
   CreditCard,
-  Copy
+  Copy,
+  X,
+  Receipt,
+  Search
 } from 'lucide-vue-next'
 import {
   Dialog,
@@ -56,6 +59,66 @@ const newSite = ref({
 const editingSite = ref<any>(null)
 const isEditingDialogVisible = ref(false)
 const isUpdating = ref(false)
+
+// Stripe Logic
+const stripeCustomers = ref<any[]>([])
+const stripeCustomerSearch = ref('')
+const isStripeDropdownOpen = ref(false)
+
+const filteredStripeCustomers = computed(() => {
+  if (!stripeCustomerSearch.value) return stripeCustomers.value.slice(0, 5)
+  const q = stripeCustomerSearch.value.toLowerCase()
+  return stripeCustomers.value.filter(c => 
+    (c.name && c.name.toLowerCase().includes(q)) || 
+    (c.email && c.email.toLowerCase().includes(q))
+  ).slice(0, 5)
+})
+
+const fetchStripeCustomers = async () => {
+  try {
+    const res = await fetch('/api/stripe/customers')
+    const data = await res.json()
+    stripeCustomers.value = data
+  } catch (error) {
+    console.error('Failed to fetch stripe customers', error)
+  }
+}
+
+const stripeInvoicesMap = ref<Record<string, any[]>>({})
+const fetchingInvoicesMap = ref<Record<string, boolean>>({})
+
+const fetchStripeInvoicesForCustomer = async (customerId: string) => {
+  if (stripeInvoicesMap.value[customerId] || fetchingInvoicesMap.value[customerId]) return
+  
+  fetchingInvoicesMap.value[customerId] = true
+  try {
+    const res = await fetch(`/api/stripe/customer-invoices?customer_id=${customerId}`)
+    const data = await res.json()
+    stripeInvoicesMap.value[customerId] = data
+  } catch (error) {
+    console.error('Failed to fetch stripe invoices', error)
+  } finally {
+    fetchingInvoicesMap.value[customerId] = false
+  }
+}
+
+const getInvoicesForSite = (site: any) => {
+  if (!site.stripe_customer_id) return []
+  return stripeInvoicesMap.value[site.stripe_customer_id] || []
+}
+
+const isFetchingInvoices = (site: any) => {
+  if (!site.stripe_customer_id) return false
+  return fetchingInvoicesMap.value[site.stripe_customer_id] || false
+}
+
+const loadAllInvoices = () => {
+  websites.value.forEach(site => {
+    if (site.stripe_customer_id) {
+      fetchStripeInvoicesForCustomer(site.stripe_customer_id)
+    }
+  })
+}
 
 // Subscription State
 const isSubscriptionDialogOpen = ref(false)
@@ -101,8 +164,9 @@ const handleCreateSubscription = async () => {
   }
 }
 
-onMounted(async () => {
-  await fetchData()
+onMounted(() => {
+  fetchStripeCustomers()
+  fetchData()
   
   // Système de récupération automatique si pas de données (toutes les 3s)
   refreshInterval.value = setInterval(() => {
@@ -136,6 +200,7 @@ const fetchData = async () => {
   try {
     websites.value = await api.getWebsites()
     customers.value = await api.getCustomers()
+    loadAllInvoices()
     if (websites.value.length > 0 && refreshInterval.value) {
       clearInterval(refreshInterval.value)
       refreshInterval.value = null
@@ -196,8 +261,15 @@ const refreshStats = async () => {
 }
 
 const openEditDialog = (site: any) => {
-  editingSite.value = { ...site, customerId: site.customerId.toString() }
+  editingSite.value = { ...site, customerId: site.customerId ? site.customerId.toString() : '' }
   isEditingDialogVisible.value = true
+  
+  if (site.stripe_customer_id) {
+    const cust = stripeCustomers.value.find(c => c.id === site.stripe_customer_id)
+    stripeCustomerSearch.value = cust?.name || cust?.email || cust?.id || ''
+  } else {
+    stripeCustomerSearch.value = ''
+  }
 }
 
 const handleUpdateWebsite = async () => {
@@ -208,10 +280,12 @@ const handleUpdateWebsite = async () => {
     name: editingSite.value.name,
     url: editingSite.value.url,
     customerId: parseInt(editingSite.value.customerId),
-    status: editingSite.value.status
+    status: editingSite.value.status,
+    stripe_customer_id: editingSite.value.stripe_customer_id || null
   })
   
   websites.value = await api.getWebsites()
+  loadAllInvoices()
   isUpdating.value = false
   isEditingDialogVisible.value = false
   editingSite.value = null
@@ -310,14 +384,59 @@ const handleUpdateWebsite = async () => {
                 <Label>Statut</Label>
                 <Select v-model="editingSite.status">
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un statut" />
+                    <SelectValue placeholder="Sélectionnez un statut" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="En ligne">En ligne</SelectItem>
-                    <SelectItem value="Maintenance">Maintenance</SelectItem>
-                    <SelectItem value="Hors ligne">Hors ligne</SelectItem>
+                    <SelectItem value="En maintenance">En maintenance</SelectItem>
+                    <SelectItem value="En développement">En développement</SelectItem>
+                    <SelectItem value="Suspendu">Suspendu</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div class="grid gap-2 relative">
+                <Label>Lier à un client Stripe (Facturation)</Label>
+                <div class="relative">
+                  <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    v-model="stripeCustomerSearch" 
+                    placeholder="Rechercher un client Stripe..." 
+                    class="pl-9"
+                    @focus="isStripeDropdownOpen = true"
+                  />
+                  <div v-if="isStripeDropdownOpen" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                    <div class="p-2 sticky top-0 bg-white border-b border-slate-100 flex justify-between items-center">
+                      <span class="text-xs font-semibold text-slate-500">Sélectionner un client</span>
+                      <button @click.prevent="isStripeDropdownOpen = false" class="text-slate-400 hover:text-slate-600">
+                        <X class="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div 
+                      v-if="!stripeCustomerSearch && editingSite.stripe_customer_id" 
+                      class="p-2 cursor-pointer hover:bg-rose-50 flex items-center justify-between text-rose-600 border-b border-slate-100"
+                      @click="() => { editingSite.stripe_customer_id = null; stripeCustomerSearch = ''; isStripeDropdownOpen = false }"
+                    >
+                      <span class="text-sm font-medium">Détacher le client actuel</span>
+                      <X class="h-4 w-4" />
+                    </div>
+                    <div 
+                      v-for="cust in filteredStripeCustomers" 
+                      :key="cust.id" 
+                      class="p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                      @click="() => { 
+                        editingSite.stripe_customer_id = cust.id; 
+                        stripeCustomerSearch = cust.name || cust.email; 
+                        isStripeDropdownOpen = false 
+                      }"
+                    >
+                      <div class="font-medium text-sm text-slate-900">{{ cust.name || 'Sans nom' }}</div>
+                      <div class="text-xs text-slate-500">{{ cust.email || 'Pas d\'email' }}</div>
+                    </div>
+                    <div v-if="filteredStripeCustomers.length === 0" class="p-4 text-center text-sm text-slate-500">
+                      Aucun client trouvé
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -462,6 +581,29 @@ const handleUpdateWebsite = async () => {
                 <span class="font-bold">{{ 70 + Math.floor(Math.random() * 25) }}/100</span>
               </div>
               <Progress :model-value="85" class="h-1" />
+            </div>
+          </div>
+
+          <!-- Stripe Invoices Section -->
+          <div v-if="site.stripe_customer_id" class="mt-4 pt-4 border-t border-slate-100">
+            <div class="flex items-center gap-2 mb-3">
+              <CreditCard class="h-3.5 w-3.5 text-indigo-500" />
+              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Historique Paiements</span>
+            </div>
+            
+            <div v-if="isFetchingInvoices(site)" class="text-[10px] text-slate-400 animate-pulse">Chargement...</div>
+            <div v-else-if="getInvoicesForSite(site).length === 0" class="text-[10px] text-slate-400">Aucune facture récente.</div>
+            <div v-else class="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+              <div v-for="inv in getInvoicesForSite(site)" :key="inv.id" class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-100">
+                <div class="flex items-center gap-2">
+                  <Receipt class="h-3 w-3 text-slate-400" />
+                  <span class="text-[10px] font-medium text-slate-700">{{ new Date(inv.created * 1000).toLocaleDateString('fr-FR') }}</span>
+                  <span class="text-[10px] font-bold text-slate-900">{{ (inv.amount_due / 100).toFixed(2) }} €</span>
+                </div>
+                <Badge :variant="inv.status === 'paid' ? 'default' : inv.status === 'open' ? 'secondary' : 'destructive'" class="text-[8px] px-1 py-0 shadow-none border-0" :class="inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : inv.status === 'open' ? 'bg-amber-100 text-amber-700' : ''">
+                  {{ inv.status === 'paid' ? 'Payé' : inv.status === 'open' ? 'En attente' : 'Échoué' }}
+                </Badge>
+              </div>
             </div>
           </div>
 

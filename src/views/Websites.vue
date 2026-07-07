@@ -92,11 +92,17 @@ const fetchStripeInvoicesForCustomer = async (customerId: string) => {
   
   fetchingInvoicesMap.value[customerId] = true
   try {
-    const res = await fetch(`/api/stripe/customer-invoices?customer_id=${customerId}`)
+    const res = await fetch(`/api/stripe/customer-invoices?customerId=${customerId}`)
     const data = await res.json()
+    if (!Array.isArray(data)) {
+      console.error('Expected array but got:', data)
+      stripeInvoicesMap.value[customerId] = []
+      return
+    }
     stripeInvoicesMap.value[customerId] = data
   } catch (error) {
     console.error('Failed to fetch stripe invoices', error)
+    stripeInvoicesMap.value[customerId] = []
   } finally {
     fetchingInvoicesMap.value[customerId] = false
   }

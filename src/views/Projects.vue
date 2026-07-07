@@ -16,12 +16,64 @@ interface Project {
   deadline: string
   priority: string
   team: string[]
+  stripe_customer_id?: string
 }
 
 interface Note {
   id: number
   text: string
   date: string
+}
+
+const stripeCustomers = ref<any[]>([])
+const stripeCustomerSearch = ref('')
+const isStripeDropdownOpen = ref(false)
+
+const stripeInvoices = ref<any[]>([])
+const isLoadingStripe = ref(false)
+
+const filteredStripeCustomers = computed(() => {
+  if (!stripeCustomerSearch.value) return stripeCustomers.value.slice(0, 5)
+  const q = stripeCustomerSearch.value.toLowerCase()
+  return stripeCustomers.value.filter(c => 
+    (c.name && c.name.toLowerCase().includes(q)) || 
+    (c.email && c.email.toLowerCase().includes(q))
+  ).slice(0, 5)
+})
+
+const fetchStripeCustomers = async () => {
+  try {
+    const res = await fetch('/api/stripe/customers')
+    const data = await res.json()
+    stripeCustomers.value = data
+  } catch (error) {
+    console.error('Failed to fetch stripe customers', error)
+  }
+}
+
+const fetchStripeInvoices = async (customerId: string) => {
+  isLoadingStripe.value = true
+  try {
+    const res = await fetch(`/api/stripe/customer-invoices?customer_id=${customerId}`)
+    const data = await res.json()
+    stripeInvoices.value = data
+  } catch (error) {
+    console.error('Failed to fetch stripe invoices', error)
+  } finally {
+    isLoadingStripe.value = false
+  }
+}
+
+const selectStripeCustomer = (custId: string | null) => {
+  if (!editingProjectData.value) return
+  editingProjectData.value.stripe_customer_id = custId
+  isStripeDropdownOpen.value = false
+  if (custId) {
+    const cust = stripeCustomers.value.find(c => c.id === custId)
+    stripeCustomerSearch.value = cust?.name || cust?.email || cust?.id || ''
+  } else {
+    stripeCustomerSearch.value = ''
+  }
 }
 
 
@@ -86,6 +138,7 @@ const parseTextWithLinks = (text: string) => {
 }
 
 onMounted(() => {
+  fetchStripeCustomers()
   fetchProjects()
   fetchNotes()
 
@@ -201,6 +254,13 @@ const startEditing = () => {
   if (!selectedProject.value) return
   editingProjectData.value = { ...selectedProject.value }
   isEditing.value = true
+  
+  if (editingProjectData.value.stripe_customer_id) {
+    const cust = stripeCustomers.value.find(c => c.id === editingProjectData.value.stripe_customer_id)
+    stripeCustomerSearch.value = cust?.name || cust?.email || cust?.id || ''
+  } else {
+    stripeCustomerSearch.value = ''
+  }
 }
 
 const cancelEditing = () => {
@@ -217,7 +277,8 @@ const saveProjectUpdate = async () => {
     deadline: editingProjectData.value.deadline,
     priority: editingProjectData.value.priority,
     progress: editingProjectData.value.progress,
-    status: editingProjectData.value.status
+    status: editingProjectData.value.status,
+    stripe_customer_id: editingProjectData.value.stripe_customer_id || null
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -225,6 +286,10 @@ const saveProjectUpdate = async () => {
     if (index !== -1) {
       projects.value[index] = { ...editingProjectData.value }
       selectedProject.value = { ...editingProjectData.value }
+      const stripeId = selectedProject.value?.stripe_customer_id
+      if (stripeId) {
+        fetchStripeInvoices(stripeId)
+      }
     }
     isEditing.value = false
     editingProjectData.value = null
@@ -281,7 +346,7 @@ const getStatusColor = (status: string) => {
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <Card v-for="project in filteredProjects" :key="project.id" 
         class="flex flex-col bg-white border-slate-100/80 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl overflow-hidden cursor-pointer"
-        @click="selectedProject = project"
+        @click="() => { selectedProject = project; if(project.stripe_customer_id) fetchStripeInvoices(project.stripe_customer_id); }"
       >
         <CardHeader class="p-4 pb-2 space-y-1">
           <div class="flex items-center justify-between">
@@ -360,17 +425,17 @@ const getStatusColor = (status: string) => {
         <!-- Modal Header -->
         <div class="p-6 border-b border-slate-100 flex items-start justify-between">
           <div class="space-y-1">
-            <Badge variant="outline" :class="[getStatusColor(selectedProject.status), 'text-xs px-2 py-0.5 font-bold border']">
-              {{ selectedProject.status === 'Planifié' ? 'Nouveau' : selectedProject.status }}
+            <Badge variant="outline" :class="[getStatusColor(selectedProject?.status || ''), 'text-xs px-2 py-0.5 font-bold border']">
+              {{ selectedProject?.status === 'Planifié' ? 'Nouveau' : selectedProject?.status }}
             </Badge>
-            <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject.name }}</h3>
-            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
+            <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject?.name }}</h3>
+            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject?.client || '')"></span></p>
           </div>
           <div class="flex items-center gap-1">
             <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
               <Pencil class="h-4 w-4" />
             </button>
-            <button @click="deleteProject(selectedProject.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
+            <button @click="deleteProject(selectedProject?.id || 0)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer le projet">
               <Trash2 class="h-5 w-5" />
             </button>
             <button @click="selectedProject = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
@@ -422,6 +487,32 @@ const getStatusColor = (status: string) => {
                 <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
               </div>
             </div>
+            <div class="space-y-1 relative">
+              <label class="text-xs font-bold text-slate-700">Lier à un client Stripe (Recherche)</label>
+              <input 
+                v-model="stripeCustomerSearch" 
+                @focus="isStripeDropdownOpen = true"
+                placeholder="Tapez le nom ou l'email du client..."
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all"
+              />
+              <div v-if="isStripeDropdownOpen" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-60 overflow-y-auto">
+                <div @click="selectStripeCustomer(null)" class="px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                  ❌ Ne lier à aucun client
+                </div>
+                <div 
+                  v-for="cust in filteredStripeCustomers" 
+                  :key="cust.id" 
+                  @click="selectStripeCustomer(cust.id)"
+                  class="px-3 py-2 text-sm text-slate-900 hover:bg-indigo-50 cursor-pointer flex flex-col"
+                >
+                  <span class="font-bold">{{ cust.name || 'Sans Nom' }}</span>
+                  <span class="text-xs text-slate-500">{{ cust.email || cust.id }}</span>
+                </div>
+                <div v-if="filteredStripeCustomers.length === 0" class="px-3 py-4 text-center text-xs text-slate-400">
+                  Aucun client trouvé
+                </div>
+              </div>
+            </div>
             <div class="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
               <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
@@ -434,14 +525,14 @@ const getStatusColor = (status: string) => {
             <div class="space-y-1">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date limite</span>
               <div class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject.deadline }}
+                <Calendar class="h-4 w-4 text-slate-500" /> {{ selectedProject?.deadline }}
               </div>
             </div>
             <div class="space-y-1">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priorité</span>
               <div>
-                <Badge :variant="selectedProject.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
-                  {{ selectedProject.priority }}
+                <Badge :variant="selectedProject?.priority === 'Critique' ? 'destructive' : 'secondary'" class="text-xs font-bold">
+                  {{ selectedProject?.priority }}
                 </Badge>
               </div>
             </div>
@@ -451,15 +542,44 @@ const getStatusColor = (status: string) => {
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
               <span class="text-slate-600 font-bold">Progression du projet</span>
-              <span class="font-black text-indigo-600">{{ selectedProject.progress }}%</span>
+              <span class="font-black text-indigo-600">{{ selectedProject?.progress }}%</span>
             </div>
-            <Progress :model-value="selectedProject.progress" class="h-2 bg-slate-100" />
+            <Progress :model-value="selectedProject?.progress" class="h-2 bg-slate-100" />
+          </div>
+
+          <!-- Stripe History -->
+          <div v-if="selectedProject?.stripe_customer_id" class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              Historique des Paiements (Stripe)
+            </h4>
+            
+            <div v-if="isLoadingStripe" class="text-center py-4 text-slate-400 text-xs">
+              Chargement des factures...
+            </div>
+            
+            <div v-else-if="stripeInvoices.length === 0" class="text-center py-4 text-slate-400 text-xs italic">
+              Aucune facture trouvée pour ce client
+            </div>
+            
+            <div v-else class="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+              <div v-for="invoice in stripeInvoices" :key="invoice.id" class="flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
+                <div class="flex flex-col">
+                  <span class="text-[10px] font-bold text-slate-400">{{ new Date(invoice.created * 1000).toLocaleDateString('fr-FR') }}</span>
+                  <span class="text-xs font-bold text-slate-900">{{ (invoice.amount_due / 100).toFixed(2) }} €</span>
+                </div>
+                <div>
+                  <Badge :variant="invoice.status === 'paid' ? 'default' : invoice.status === 'open' ? 'secondary' : 'destructive'" class="text-[10px]" :class="invoice.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : invoice.status === 'open' ? 'bg-amber-100 text-amber-700' : ''">
+                    {{ invoice.status === 'paid' ? 'Payé' : invoice.status === 'open' ? 'En attente' : 'Échoué' }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Notes Section -->
           <div class="space-y-3">
             <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <FileText class="h-4 w-4 text-slate-500" /> Notes & Suivi ({{ projectNotes[selectedProject.id]?.length || 0 }})
+              <FileText class="h-4 w-4 text-slate-500" /> Notes & Suivi ({{ selectedProject?.id ? (projectNotes[selectedProject.id]?.length || 0) : 0 }})
             </h4>
 
             <!-- Add Note Input -->
@@ -476,7 +596,7 @@ const getStatusColor = (status: string) => {
             </div>
 
             <!-- Notes List -->
-            <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+            <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1" v-if="selectedProject?.id">
               <div v-for="(note, index) in projectNotes[selectedProject.id]" :key="note.id || index" 
                 class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1 relative group"
               >
@@ -485,7 +605,7 @@ const getStatusColor = (status: string) => {
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
                     <button 
-                      @click="deleteNote(note.id, selectedProject.id)" 
+                      @click="deleteNote(note.id, selectedProject?.id || 0)" 
                       class="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
                       title="Supprimer la note"
                     >
@@ -496,7 +616,7 @@ const getStatusColor = (status: string) => {
                 <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap" v-html="parseTextWithLinks(note.text)"></p>
               </div>
               
-              <div v-if="!projectNotes[selectedProject.id]?.length" class="text-center py-6 text-slate-400 text-sm italic">
+              <div v-if="!projectNotes[selectedProject?.id || 0]?.length" class="text-center py-6 text-slate-400 text-sm italic">
                 Aucune note pour le moment.
               </div>
             </div>

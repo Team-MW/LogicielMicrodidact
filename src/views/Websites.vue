@@ -116,6 +116,21 @@ onUnmounted(() => {
   if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
+const copyLink = (url: string) => {
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    navigator.clipboard.writeText(url)
+  }
+  if (typeof window !== 'undefined' && window.alert) {
+    window.alert('Lien copié !')
+  }
+}
+
+const openLink = (url: string) => {
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank')
+  }
+}
+
 const fetchData = async () => {
   isLoading.value = true
   try {
@@ -345,13 +360,13 @@ const handleUpdateWebsite = async () => {
                 <Label>Lien à envoyer au client :</Label>
                 <div class="flex gap-2">
                   <Input :value="generatedPaymentLink" readonly class="text-xs bg-slate-50 font-mono" />
-                  <Button size="icon" variant="outline" @click="() => { navigator.clipboard.writeText(generatedPaymentLink); alert('Lien copié !') }" title="Copier le lien">
+                  <Button size="icon" variant="outline" @click="copyLink(generatedPaymentLink)" title="Copier le lien">
                     <Copy class="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <div class="flex justify-end pt-2">
-                <Button variant="link" class="text-xs text-indigo-600" @click="() => window.open(generatedPaymentLink, '_blank')">
+                <Button variant="link" class="text-xs text-indigo-600" @click="openLink(generatedPaymentLink)">
                   Ouvrir le lien moi-même &rarr;
                 </Button>
               </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -8,7 +8,6 @@ import {
   ChevronRight, 
   Calendar, 
   Search,
-  User,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -21,7 +20,6 @@ import {
   X,
   FileText
 } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 
 interface Installation {
@@ -199,12 +197,6 @@ const filteredInstallations = () => {
     (inst.client || '').toLowerCase().includes(query) || 
     (inst.address || '').toLowerCase().includes(query)
   )
-}
-
-const getStatusIcon = (status: string) => {
-  if (status === 'Terminé') return CheckCircle2
-  if (status === 'En cours') return Clock
-  return AlertCircle
 }
 
 const getStatusColor = (status: string) => {

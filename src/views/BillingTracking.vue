@@ -141,6 +141,19 @@ const filteredProjects = computed(() => {
   return base
 })
 
+const formatCurrency = (amount: number, currency: string) => {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency.toUpperCase() }).format(amount / 100)
+}
+
+const copyLink = (url: string) => {
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    navigator.clipboard.writeText(url)
+  }
+  if (typeof window !== 'undefined' && window.alert) {
+    window.alert('Lien copié !')
+  }
+}
+
 const updateStatus = async (projectId: number, newStatus: string) => {
   let progress = 0
   if (newStatus === 'Terminé' || newStatus === 'Traité') progress = 100
@@ -466,7 +479,7 @@ const getStatusColor = (status: string) => {
             </div>
             <div class="flex justify-between items-center text-xs">
               <span class="text-slate-500">Créé le {{ new Date(link.created * 1000).toLocaleDateString('fr-FR') }}</span>
-              <Button size="sm" variant="outline" class="h-7 text-xs bg-white" @click="() => { navigator.clipboard.writeText(link.url); alert('Lien copié !') }">Copier le lien</Button>
+              <Button size="sm" variant="outline" class="h-7 text-xs bg-white" @click="copyLink(link.url)">Copier le lien</Button>
             </div>
           </CardContent>
         </Card>

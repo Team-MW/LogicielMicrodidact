@@ -10,7 +10,7 @@ const stripeDevPlugin = (env: Record<string, string>) => ({
     const Stripe = (await import('stripe')).default;
     const stripe = new Stripe(env.STRIPE_SECRET_KEY || '');
     
-    server.middlewares.use('/api/stripe/payment-links', async (req: any, res: any) => {
+    server.middlewares.use('/api/stripe/payment-links', async (_req: any, res: any) => {
       try {
         const paymentLinks = await stripe.paymentLinks.list({ limit: 100, active: true, expand: ['data.line_items.data.price.product'] });
         res.setHeader('Content-Type', 'application/json');
@@ -21,7 +21,7 @@ const stripeDevPlugin = (env: Record<string, string>) => ({
       }
     });
 
-    server.middlewares.use('/api/stripe/subscriptions', async (req: any, res: any) => {
+    server.middlewares.use('/api/stripe/subscriptions', async (_req: any, res: any) => {
       try {
         const subscriptions = await stripe.subscriptions.list({ limit: 100, status: 'active', expand: ['data.customer', 'data.plan.product'] });
         res.setHeader('Content-Type', 'application/json');
@@ -32,7 +32,7 @@ const stripeDevPlugin = (env: Record<string, string>) => ({
       }
     });
 
-    server.middlewares.use('/api/stripe/invoices', async (req: any, res: any) => {
+    server.middlewares.use('/api/stripe/invoices', async (_req: any, res: any) => {
       try {
         const invoices = await stripe.invoices.list({ limit: 100, expand: ['data.customer'] });
         res.setHeader('Content-Type', 'application/json');
@@ -77,7 +77,7 @@ const stripeDevPlugin = (env: Record<string, string>) => ({
       });
     });
 
-    server.middlewares.use('/api/stripe/customers', async (req: any, res: any) => {
+    server.middlewares.use('/api/stripe/customers', async (_req: any, res: any) => {
       try {
         const customers = await stripe.customers.list({ limit: 100 });
         res.setHeader('Content-Type', 'application/json');

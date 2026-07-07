@@ -9,7 +9,7 @@ const stats = ref([
   { name: 'Ventes Totales (Stripe)', value: '0.00 €', change: 'En direct', icon: DollarSign, color: 'text-emerald-600' },
   { name: 'Clients Actifs', value: '0', change: 'En direct', icon: Users, color: 'text-blue-600' },
   { name: 'Projets Actifs', value: '0', change: 'En direct', icon: Package, color: 'text-orange-600' },
-  { name: 'Taux de Conversion', value: '0.0%', change: 'En direct', icon: BarChart3, color: 'text-purple-600' },
+  { name: 'Revenus (7 jours)', value: '0.00 €', change: '+ 0.00 € aujourd\'hui', icon: BarChart3, color: 'text-purple-600' },
 ])
 
 const chartData = ref(Array(12).fill(0))
@@ -25,17 +25,32 @@ onMounted(async () => {
       
       if (Array.isArray(invoices)) {
         let totalStripeSales = 0
+        let revenueWeek = 0
+        let revenueToday = 0
+        
         const monthlySales = Array(12).fill(0)
+        const now = new Date()
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+        const weekStart = todayStart - (7 * 24 * 60 * 60 * 1000)
         
         invoices.forEach(inv => {
           if (inv.status === 'paid') {
             const amount = inv.amount_paid / 100 // Convertir les centimes en euros
             totalStripeSales += amount
             
-            // Calculer pour le graphique
             const date = new Date(inv.created * 1000)
-            // On s'assure qu'on ne prend que l'année courante ou les 12 derniers mois
-            const currentYear = new Date().getFullYear()
+            const time = date.getTime()
+            
+            // Calcul semaine et aujourd'hui
+            if (time >= weekStart) {
+              revenueWeek += amount
+            }
+            if (time >= todayStart) {
+              revenueToday += amount
+            }
+            
+            // Calculer pour le graphique
+            const currentYear = now.getFullYear()
             if (date.getFullYear() === currentYear) {
               const month = date.getMonth() // 0 to 11
               monthlySales[month] += amount
@@ -44,6 +59,8 @@ onMounted(async () => {
         })
         
         stats.value[0].value = `${totalStripeSales.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+        stats.value[3].value = `${revenueWeek.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`
+        stats.value[3].change = `+ ${revenueToday.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € aujourd'hui`
         
         // Mise à jour du graphique
         chartData.value = monthlySales
@@ -93,10 +110,12 @@ onMounted(async () => {
         <CardContent>
           <div class="text-2xl font-bold">{{ stat.value }}</div>
           <p class="text-xs text-muted-foreground">
-            <span :class="stat.change.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'" class="font-medium">
+            <span :class="(stat.change.includes('+') || stat.change === 'En direct') ? 'text-emerald-600' : 'text-rose-600'" class="font-medium">
               {{ stat.change }}
             </span>
-            par rapport au mois dernier
+            <span v-if="stat.name === 'Ventes Totales (Stripe)' || stat.name === 'Clients Actifs' || stat.name === 'Projets Actifs'">
+              par rapport au mois dernier
+            </span>
           </p>
         </CardContent>
       </Card>

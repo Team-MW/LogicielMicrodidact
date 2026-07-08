@@ -130,7 +130,10 @@ const weekDays = computed(() => {
 })
 
 const getTasksForDay = (date: Date) => {
-  const dateStr = date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const dateStr = `${year}-${month}-${day}`
   return calendarTasks.value.filter(t => t.task_date === dateStr)
 }
 
@@ -161,7 +164,11 @@ const newTask = ref({
 })
 
 const openAddModal = (date: Date, initialStatus?: string) => {
-  selectedDate.value = date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  selectedDate.value = `${year}-${month}-${day}`
+  
   newTask.value.status = initialStatus || 'A faire'
   showAddModal.value = true
 }
@@ -445,7 +452,7 @@ const saveTaskUpdate = async () => {
                <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest">ClickUp Mode</span>
                <h3 class="text-xl font-black text-slate-900 uppercase tracking-tight">Nouvelle Mission</h3>
             </div>
-            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ formatDate(new Date(selectedDate)) }}</p>
+            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ selectedDate.split('-').reverse().join('/') }}</p>
           </div>
           <button @click="showAddModal = false" class="p-2 rounded-xl text-slate-400 hover:bg-white hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-100">
             <X class="h-5 w-5" />
@@ -525,7 +532,7 @@ const saveTaskUpdate = async () => {
                   <h3 class="text-xl font-black text-slate-900 uppercase tracking-tight">{{ selectedTaskForView.intern_name }}</h3>
                   <Flag class="h-4 w-4" :class="priorityColors[selectedTaskForView.priority] || 'text-slate-400'" />
                 </div>
-                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ formatDate(new Date(selectedTaskForView.task_date)) }}</p>
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-60">{{ selectedTaskForView.task_date.split('-').reverse().join('/') }}</p>
               </div>
           </div>
           <div class="flex items-center gap-2">
@@ -597,7 +604,7 @@ const saveTaskUpdate = async () => {
                </div>
                <div class="space-y-1 text-right">
                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">Création</p>
-                 <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ new Date(selectedTaskForView.task_date).toLocaleDateString('fr-FR') }}</span>
+                 <span class="text-xs font-black text-slate-600 uppercase tracking-tight">{{ selectedTaskForView.task_date.split('-').reverse().join('/') }}</span>
                </div>
             </div>
 

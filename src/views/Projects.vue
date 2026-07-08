@@ -233,6 +233,9 @@ const deleteProject = async (id: number) => {
     if (!error) {
       projects.value = projects.value.filter(p => p.id !== id)
       selectedProject.value = null
+    } else {
+      console.error('Erreur suppression projet:', error)
+      alert('Impossible de supprimer le projet. Erreur: ' + error.message)
     }
   }
 }

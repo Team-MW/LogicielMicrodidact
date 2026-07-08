@@ -76,9 +76,6 @@ const setWeekToMonday = (date: Date) => {
   return new Date(d.setDate(diff))
 }
 
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-}
 
 const nextWeek = () => {
   const d = new Date(currentWeekStart.value)

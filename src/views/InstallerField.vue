@@ -47,6 +47,8 @@ const showToast = (msg: string) => {
   setTimeout(() => { successToast.value = '' }, 3500)
 }
 
+const activeTab = ref<'chantiers' | 'termines'>('chantiers')
+
 // --- Nouveau Chantier States ---
 const showCreateModal = ref(false)
 const savingNew = ref(false)
@@ -77,8 +79,8 @@ const logout = () => {
   router.push('/login')
 }
 
-const fetchInstallations = async () => {
-  loading.value = true
+const fetchInstallations = async (silent = false) => {
+  if (!silent) loading.value = true
   fetchError.value = ''
   try {
     const { data, error } = await supabase
@@ -100,7 +102,7 @@ const fetchInstallations = async () => {
     console.error('Fetch exception:', e)
     fetchError.value = 'Impossible de contacter la base de données.'
   }
-  loading.value = false
+  if (!silent) loading.value = false
 }
 
 const handleCreatePhotoUpload = async (event: Event) => {
@@ -175,7 +177,7 @@ const submitNewIntervention = async () => {
       notes: ''
     }
     
-    await fetchInstallations()
+    await fetchInstallations(true)
     showToast('✅ Chantier ajouté avec succès !')
   } catch (error) {
     console.error('Error creating intervention:', error)
@@ -190,12 +192,22 @@ onUnmounted(() => {
 })
 
 const filteredInstallations = () => {
-  if (!searchQuery.value) return installations.value
-  const query = searchQuery.value.toLowerCase()
-  return installations.value.filter(inst =>
-    (inst.client || '').toLowerCase().includes(query) || 
-    (inst.address || '').toLowerCase().includes(query)
-  )
+  let list = installations.value
+  
+  if (activeTab.value === 'chantiers') {
+    list = list.filter(inst => inst.status !== 'Terminé')
+  } else {
+    list = list.filter(inst => inst.status === 'Terminé')
+  }
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    list = list.filter(inst =>
+      (inst.client || '').toLowerCase().includes(query) || 
+      (inst.address || '').toLowerCase().includes(query)
+    )
+  }
+  return list
 }
 
 const getStatusColor = (status: string) => {
@@ -217,7 +229,7 @@ const goToReport = (id: number) => {
 onMounted(() => {
   fetchInstallations()
   refreshInterval.value = setInterval(() => {
-    fetchInstallations()
+    fetchInstallations(true)
   }, 10000)
 })
 </script>
@@ -270,7 +282,9 @@ onMounted(() => {
     <main class="flex-1 px-6 py-6 space-y-5 max-w-xl mx-auto w-full">
       
       <div class="flex items-center justify-between mb-2">
-        <h2 class="text-[11px] font-black uppercase tracking-widest text-slate-400">Mes chantiers assignés</h2>
+        <h2 class="text-[11px] font-black uppercase tracking-widest text-slate-400">
+          {{ activeTab === 'chantiers' ? 'Mes chantiers en cours' : 'Chantiers terminés' }}
+        </h2>
       </div>
 
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 space-y-4">
@@ -289,7 +303,7 @@ onMounted(() => {
             <p class="text-rose-500 text-[10px] font-medium mt-0.5 break-all">{{ fetchError }}</p>
           </div>
           <p v-else class="text-slate-500 text-sm font-medium leading-relaxed max-w-xs mx-auto">
-            Vous n'avez pas de chantiers assignés pour le moment.
+            {{ activeTab === 'chantiers' ? 'Vous n\'avez pas de chantiers assignés pour le moment.' : 'Aucun chantier terminé.' }}
           </p>
         </div>
         <button 
@@ -359,13 +373,21 @@ onMounted(() => {
 
     <!-- Bottom Navigation (Floating) -->
     <nav class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-2xl px-2 py-2 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.08)] flex gap-2 z-30 border border-white max-w-[280px] w-full">
-      <div class="flex-1 py-3 px-2 bg-indigo-50 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
-        <Truck class="w-5 h-5 text-indigo-600" />
-        <span class="text-[9px] font-black uppercase tracking-widest text-indigo-600">Chantiers</span>
+      <div 
+        @click="activeTab = 'chantiers'"
+        class="flex-1 py-3 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors"
+        :class="activeTab === 'chantiers' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'"
+      >
+        <Truck class="w-5 h-5" :class="activeTab === 'chantiers' ? 'text-indigo-600' : ''" />
+        <span class="text-[9px] font-black uppercase tracking-widest" :class="activeTab === 'chantiers' ? 'text-indigo-600' : ''">Chantiers</span>
       </div>
-      <div class="flex-1 py-3 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
-        <CheckCircle2 class="w-5 h-5" />
-        <span class="text-[9px] font-bold uppercase tracking-widest">Terminés</span>
+      <div 
+        @click="activeTab = 'termines'"
+        class="flex-1 py-3 px-2 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors"
+        :class="activeTab === 'termines' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'"
+      >
+        <CheckCircle2 class="w-5 h-5" :class="activeTab === 'termines' ? 'text-indigo-600' : ''" />
+        <span class="text-[9px] font-bold uppercase tracking-widest" :class="activeTab === 'termines' ? 'text-indigo-600 font-black' : ''">Terminés</span>
       </div>
     </nav>
 

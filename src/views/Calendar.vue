@@ -77,6 +77,11 @@ const setWeekToMonday = (date: Date) => {
   return new Date(d.setDate(diff))
 }
 
+const formatTaskDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-')
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
 
 const nextWeek = () => {
   const d = new Date(currentWeekStart.value)
@@ -93,11 +98,17 @@ const prevWeek = () => {
 // Fetching Logic
 const fetchData = async () => {
   isLoading.value = true
-  const { data: cData } = await supabase.from('calendar_tasks').select('*').order('created_at', { ascending: true })
-  if (cData) calendarTasks.value = cData
-  const { data: mData } = await supabase.from('missions').select('*').order('created_at', { ascending: true })
-  if (mData) boardMissions.value = mData
-  isLoading.value = false
+  try {
+    const { data: cData, error: cError } = await supabase.from('calendar_tasks').select('*').order('created_at', { ascending: true })
+    if (cData && !cError) calendarTasks.value = cData
+    
+    const { data: mData, error: mError } = await supabase.from('missions').select('*').order('created_at', { ascending: true })
+    if (mData && !mError) boardMissions.value = mData
+  } catch (err) {
+    console.error(err)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 onMounted(() => {
@@ -245,6 +256,14 @@ const saveTaskUpdate = async () => {
 
 <template>
   <div class="flex-1 space-y-4 md:space-y-6 p-3 md:p-6 bg-slate-50/30 min-h-screen relative">
+    
+    <div v-if="isLoading" class="absolute inset-0 bg-white/60 backdrop-blur-sm z-30 flex flex-col items-center justify-center">
+      <div class="w-12 h-12 rounded-2xl bg-indigo-600 animate-pulse flex items-center justify-center shadow-lg shadow-indigo-200">
+        <div class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+      </div>
+      <p class="mt-4 text-xs font-black uppercase tracking-widest text-indigo-600">Chargement des données...</p>
+    </div>
+
     <!-- Header with View Switcher -->
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 md:gap-6">
       <div>
@@ -398,7 +417,7 @@ const saveTaskUpdate = async () => {
                <div class="flex items-center justify-between pt-2">
                   <div class="flex items-center gap-2">
                     <Clock class="h-3 w-3 text-slate-300" />
-                    <span class="text-[9px] font-black text-slate-400 uppercase">{{ new Date(task.task_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }}</span>
+                    <span class="text-[9px] font-black text-slate-400 uppercase">{{ formatTaskDate(task.task_date) }}</span>
                   </div>
                   <div v-if="task.project_link" class="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
                      <LinkIcon class="h-3 w-3 text-indigo-400" />

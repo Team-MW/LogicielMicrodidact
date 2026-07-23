@@ -17,6 +17,7 @@ interface Project {
   priority: string
   team: string[]
   stripe_customer_id?: string
+  search_console?: boolean
 }
 
 interface Note {
@@ -195,6 +196,22 @@ const updateStatus = async (projectId: number, newStatus: string) => {
   }
 }
 
+const toggleSearchConsole = async (projectId: number, currentValue: boolean) => {
+  const newValue = !currentValue
+  const { error } = await supabase.from('projects').update({ search_console: newValue }).eq('id', projectId)
+  if (!error) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (project) {
+      project.search_console = newValue
+      if (selectedProject.value && selectedProject.value.id === projectId) {
+        selectedProject.value.search_console = newValue
+      }
+    }
+  } else {
+    alert("Erreur lors de la mise à jour : " + error.message)
+  }
+}
+
 const addNote = async () => {
   if (!selectedProject.value || !newNoteText.value.trim()) return
   const projectId = selectedProject.value.id
@@ -287,7 +304,8 @@ const saveProjectUpdate = async () => {
     priority: editingProjectData.value.priority,
     progress: editingProjectData.value.progress,
     status: editingProjectData.value.status,
-    stripe_customer_id: editingProjectData.value.stripe_customer_id || null
+    stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
+    search_console: editingProjectData.value.search_console || false
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -522,6 +540,7 @@ const getStatusColor = (status: string) => {
                 </div>
               </div>
             </div>
+
             <div class="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
               <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
@@ -544,6 +563,29 @@ const getStatusColor = (status: string) => {
                   {{ selectedProject?.priority }}
                 </Badge>
               </div>
+            </div>
+            
+            <!-- Integration Toggles -->
+            <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg" :class="selectedProject?.search_console ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
+                  <Search class="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 class="text-sm font-bold text-slate-900">Google Search Console</h4>
+                  <p class="text-[10px] text-slate-500 font-medium">Indexation et suivi des performances</p>
+                </div>
+              </div>
+              <button 
+                @click="toggleSearchConsole(selectedProject?.id || 0, !!selectedProject?.search_console)"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                :class="selectedProject?.search_console ? 'bg-indigo-600' : 'bg-slate-300'"
+              >
+                <span 
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  :class="selectedProject?.search_console ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+              </button>
             </div>
           </div>
 

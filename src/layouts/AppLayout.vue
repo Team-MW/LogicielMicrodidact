@@ -54,11 +54,11 @@ const navItems = [
   { name: 'Suivi Facturation', icon: CreditCard, path: '/billing' },
   { name: 'Planning', icon: Calendar, path: '/calendar' },
   { name: 'Planning Commercial', icon: TrendingUp, path: '/commercial' },
-  { name: 'Suivi Poseurs', icon: Truck, path: '/installers' },
-  { name: 'Espace Poseur (Amar)', icon: Smartphone, path: '/installer' },
   { name: 'Clients', icon: Users, path: '/customers' },
   { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },
   { name: 'Domaines & Hébergement', icon: Globe, path: '/domains' },
+  { name: 'Suivi Poseurs', icon: Truck, path: '/installers', special: true, mtAuto: true },
+  { name: 'Espace Poseur (Amar)', icon: Smartphone, path: '/installer', special: true },
 ]
 </script>
 
@@ -83,7 +83,7 @@ const navItems = [
         </Button>
       </div>
       
-      <nav class="flex-1 px-3 py-4 space-y-1">
+      <nav class="flex-1 px-3 py-4 space-y-1 flex flex-col">
         <RouterLink 
           v-for="item in navItems" 
           :key="item.name" 
@@ -91,9 +91,10 @@ const navItems = [
           @click="isMobileMenuOpen = false"
           class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm"
           :class="[
+            item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? 'bg-primary text-primary-foreground shadow-sm font-bold' 
-              : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />
@@ -125,16 +126,17 @@ const navItems = [
         </div>
       </div>
 
-      <nav class="flex-1 px-3 space-y-1">
+      <nav class="flex-1 px-3 space-y-1 flex flex-col pb-4">
         <RouterLink 
           v-for="item in navItems" 
           :key="item.name" 
           :to="item.path"
           class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors group"
           :class="[
+            item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? 'bg-primary text-primary-foreground shadow-sm font-bold' 
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />

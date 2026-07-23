@@ -307,7 +307,7 @@ onMounted(() => {
           </p>
         </div>
         <button 
-          @click="fetchInstallations"
+          @click="() => fetchInstallations(false)"
           class="px-6 py-3 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-700 shadow-sm active:scale-95 transition-all flex items-center gap-2"
         >
           <RefreshCw class="w-4 h-4" :class="loading && 'animate-spin'" />

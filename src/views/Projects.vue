@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Globe, ExternalLink } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -18,6 +18,7 @@ interface Project {
   team: string[]
   stripe_customer_id?: string
   search_console?: boolean
+  domain_name?: string
 }
 
 interface Note {
@@ -212,6 +213,18 @@ const toggleSearchConsole = async (projectId: number, currentValue: boolean) => 
   }
 }
 
+const updateDomainName = async (projectId: number, newDomain: string) => {
+  const { error } = await supabase.from('projects').update({ domain_name: newDomain }).eq('id', projectId)
+  if (!error) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (project) {
+      project.domain_name = newDomain
+    }
+  } else {
+    alert("Erreur lors de la sauvegarde du domaine : " + error.message)
+  }
+}
+
 const addNote = async () => {
   if (!selectedProject.value || !newNoteText.value.trim()) return
   const projectId = selectedProject.value.id
@@ -305,7 +318,8 @@ const saveProjectUpdate = async () => {
     progress: editingProjectData.value.progress,
     status: editingProjectData.value.status,
     stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
-    search_console: editingProjectData.value.search_console || false
+    search_console: editingProjectData.value.search_console || false,
+    domain_name: editingProjectData.value.domain_name || null
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -541,7 +555,12 @@ const getStatusColor = (status: string) => {
               </div>
             </div>
 
-            <div class="flex justify-end gap-2 pt-2">
+            <div class="space-y-1 mt-4">
+              <label class="text-xs font-bold text-slate-700">Nom de Domaine</label>
+              <input v-model="editingProjectData.domain_name" placeholder="Ex: www.mon-site.fr" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4">
               <Button variant="ghost" size="sm" @click="cancelEditing">Annuler</Button>
               <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
             </div>
@@ -586,6 +605,40 @@ const getStatusColor = (status: string) => {
                   :class="selectedProject?.search_console ? 'translate-x-6' : 'translate-x-1'"
                 ></span>
               </button>
+            </div>
+            
+            <!-- Domain Name Input -->
+            <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-2 relative">
+              <div class="flex items-center gap-3 mb-1">
+                <div class="p-2 rounded-lg" :class="selectedProject?.domain_name ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
+                  <Globe class="h-4 w-4" />
+                </div>
+                <div class="flex-1">
+                  <h4 class="text-sm font-bold text-slate-900">Nom de Domaine</h4>
+                  <p class="text-[10px] text-slate-500 font-medium">Saisissez l'URL pour la sauvegarder automatiquement</p>
+                </div>
+                <a 
+                  v-if="selectedProject?.domain_name" 
+                  :href="(selectedProject.domain_name.startsWith('http') ? '' : 'https://') + selectedProject.domain_name" 
+                  target="_blank" 
+                  class="p-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                  title="Visiter le site"
+                >
+                  <ExternalLink class="h-4 w-4" />
+                </a>
+              </div>
+              <input 
+                :value="selectedProject?.domain_name || ''"
+                @change="(e) => { 
+                  if(selectedProject) {
+                    selectedProject.domain_name = (e.target as HTMLInputElement).value;
+                    updateDomainName(selectedProject.id, selectedProject.domain_name);
+                  }
+                }"
+                type="text" 
+                placeholder="Ex: www.mon-site.fr" 
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium text-slate-700"
+              />
             </div>
           </div>
 

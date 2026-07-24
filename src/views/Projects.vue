@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Globe, ExternalLink } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Globe, ExternalLink, Scale, ClipboardCheck } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -19,6 +19,8 @@ interface Project {
   stripe_customer_id?: string
   search_console?: boolean
   domain_name?: string
+  legal_mentions?: boolean
+  jotform_completed?: boolean
 }
 
 interface Note {
@@ -197,15 +199,15 @@ const updateStatus = async (projectId: number, newStatus: string) => {
   }
 }
 
-const toggleSearchConsole = async (projectId: number, currentValue: boolean) => {
+const toggleProjectOption = async (projectId: number, field: 'search_console' | 'legal_mentions' | 'jotform_completed', currentValue: boolean) => {
   const newValue = !currentValue
-  const { error } = await supabase.from('projects').update({ search_console: newValue }).eq('id', projectId)
+  const { error } = await supabase.from('projects').update({ [field]: newValue }).eq('id', projectId)
   if (!error) {
     const project = projects.value.find(p => p.id === projectId)
     if (project) {
-      project.search_console = newValue
+      project[field] = newValue
       if (selectedProject.value && selectedProject.value.id === projectId) {
-        selectedProject.value.search_console = newValue
+        selectedProject.value[field] = newValue
       }
     }
   } else {
@@ -596,13 +598,57 @@ const getStatusColor = (status: string) => {
                 </div>
               </div>
               <button 
-                @click="toggleSearchConsole(selectedProject?.id || 0, !!selectedProject?.search_console)"
+                @click="toggleProjectOption(selectedProject?.id || 0, 'search_console', !!selectedProject?.search_console)"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
                 :class="selectedProject?.search_console ? 'bg-indigo-600' : 'bg-slate-300'"
               >
                 <span 
                   class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
                   :class="selectedProject?.search_console ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+              </button>
+            </div>
+            
+            <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg" :class="selectedProject?.legal_mentions ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
+                  <Scale class="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 class="text-sm font-bold text-slate-900">Mentions Légales</h4>
+                  <p class="text-[10px] text-slate-500 font-medium">Pages légales complétées</p>
+                </div>
+              </div>
+              <button 
+                @click="toggleProjectOption(selectedProject?.id || 0, 'legal_mentions', !!selectedProject?.legal_mentions)"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                :class="selectedProject?.legal_mentions ? 'bg-indigo-600' : 'bg-slate-300'"
+              >
+                <span 
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  :class="selectedProject?.legal_mentions ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+              </button>
+            </div>
+            
+            <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg" :class="selectedProject?.jotform_completed ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
+                  <ClipboardCheck class="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 class="text-sm font-bold text-slate-900">Formulaire Jotform</h4>
+                  <p class="text-[10px] text-slate-500 font-medium">Complété avec l'email du client</p>
+                </div>
+              </div>
+              <button 
+                @click="toggleProjectOption(selectedProject?.id || 0, 'jotform_completed', !!selectedProject?.jotform_completed)"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                :class="selectedProject?.jotform_completed ? 'bg-indigo-600' : 'bg-slate-300'"
+              >
+                <span 
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  :class="selectedProject?.jotform_completed ? 'translate-x-6' : 'translate-x-1'"
                 ></span>
               </button>
             </div>

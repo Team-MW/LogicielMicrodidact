@@ -31,7 +31,6 @@ interface CalendarTask {
 }
 
 const calendarTasks = ref<CalendarTask[]>([])
-const boardMissions = ref<CalendarTask[]>([])
 const isLoading = ref(true)
 const currentWeekStart = ref(new Date())
 const activeView = ref<'calendar' | 'board'>('calendar')
@@ -102,10 +101,6 @@ const fetchData = async () => {
   if (savedCalendarTasks) {
     calendarTasks.value = JSON.parse(savedCalendarTasks)
   }
-  const savedMissions = localStorage.getItem('commercial_missions')
-  if (savedMissions) {
-    boardMissions.value = JSON.parse(savedMissions)
-  }
   isLoading.value = false
 }
 
@@ -113,9 +108,6 @@ const saveCalendarTasks = () => {
   localStorage.setItem('commercial_calendar_tasks', JSON.stringify(calendarTasks.value))
 }
 
-const saveMissions = () => {
-  localStorage.setItem('commercial_missions', JSON.stringify(boardMissions.value))
-}
 
 onMounted(() => {
   currentWeekStart.value = setWeekToMonday(new Date())
@@ -149,7 +141,7 @@ const onDrop = async (newStatus: string) => {
   const taskToUpdate = draggedTask.value
   taskToUpdate.status = newStatus
   taskToUpdate.is_completed = newStatus === 'Terminé'
-  saveMissions()
+  saveCalendarTasks()
   draggedTask.value = null
 }
 
@@ -178,8 +170,6 @@ const openAddModal = (date: Date, initialStatus?: string) => {
 
 const addTask = async () => {
   if (!newTask.value.intern_name || !newTask.value.task_description) return
-  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
-  
   const newTaskObj = {
     id: Date.now(),
     intern_name: newTask.value.intern_name,
@@ -190,42 +180,24 @@ const addTask = async () => {
     task_date: selectedDate.value,
     is_completed: newTask.value.status === 'Terminé'
   }
-
-  if (table === 'calendar_tasks') {
-    calendarTasks.value.push(newTaskObj)
-    saveCalendarTasks()
-  } else {
-    boardMissions.value.push(newTaskObj)
-    saveMissions()
-  }
+  calendarTasks.value.push(newTaskObj)
+  saveCalendarTasks()
   
   newTask.value = { intern_name: '', task_description: '', project_link: '', status: 'A faire', priority: 'Normale' }
   showAddModal.value = false
 }
 
 const updateTaskStatus = async (task: CalendarTask, newStatus: string) => {
-  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
   const isCompleted = newStatus === 'Terminé'
   task.status = newStatus
   task.is_completed = isCompleted
-  if (table === 'calendar_tasks') {
-    saveCalendarTasks()
-  } else {
-    saveMissions()
-  }
+  saveCalendarTasks()
 }
 
 const deleteTask = async (id: number) => {
   if (!confirm('Supprimer cet élément ?')) return
-  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
-  
-  if (table === 'calendar_tasks') {
-    calendarTasks.value = calendarTasks.value.filter(t => t.id !== id)
-    saveCalendarTasks()
-  } else {
-    boardMissions.value = boardMissions.value.filter(t => t.id !== id)
-    saveMissions()
-  }
+  calendarTasks.value = calendarTasks.value.filter(t => t.id !== id)
+  saveCalendarTasks()
 }
 
 const selectedTaskForView = ref<CalendarTask | null>(null)
@@ -240,22 +212,14 @@ const startEditingTask = () => {
 
 const saveTaskUpdate = async () => {
   if (!editingTaskData.value) return
-  const table = activeView.value === 'calendar' ? 'calendar_tasks' : 'missions'
-  
   const updatedTask = {
     ...editingTaskData.value,
     is_completed: editingTaskData.value.status === 'Terminé'
   }
 
-  if (table === 'calendar_tasks') {
-    const idx = calendarTasks.value.findIndex(t => t.id === editingTaskData.value.id)
-    if (idx !== -1) calendarTasks.value[idx] = updatedTask
-    saveCalendarTasks()
-  } else {
-    const idx = boardMissions.value.findIndex(t => t.id === editingTaskData.value.id)
-    if (idx !== -1) boardMissions.value[idx] = updatedTask
-    saveMissions()
-  }
+  const idx = calendarTasks.value.findIndex(t => t.id === editingTaskData.value.id)
+  if (idx !== -1) calendarTasks.value[idx] = updatedTask
+  saveCalendarTasks()
   
   selectedTaskForView.value = { ...updatedTask }
   isEditingTask.value = false
@@ -393,7 +357,7 @@ const saveTaskUpdate = async () => {
               <div class="w-3 h-3 rounded-full shadow-sm" :class="(statusColors[status] || '').split(' ')[0]"></div>
               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-600">{{ status }}</h3>
               <span class="px-2 py-0.5 rounded-full bg-white text-[9px] font-black text-slate-400 shadow-xs">
-                {{ boardMissions.filter(t => t.status === status).length }}
+                {{ calendarTasks.filter(t => t.status === status).length }}
               </span>
            </div>
            <button @click="openAddModal(new Date(), status)" class="text-slate-300 hover:text-slate-500 transition-colors">
@@ -402,7 +366,7 @@ const saveTaskUpdate = async () => {
         </div>
 
         <div class="flex-1 space-y-3">
-          <div v-for="task in boardMissions.filter(t => t.status === status)" :key="task.id"
+          <div v-for="task in calendarTasks.filter(t => t.status === status)" :key="task.id"
             draggable="true"
             @dragstart="onDragStart(task)"
             class="group p-5 bg-white border border-slate-100 rounded-2xl shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-grab active:cursor-grabbing relative overflow-hidden"
@@ -438,7 +402,7 @@ const saveTaskUpdate = async () => {
             <div class="absolute top-0 left-0 w-1 h-full" :class="(statusColors[status] || '').split(' ')[0]"></div>
           </div>
           
-          <div v-if="boardMissions.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
+          <div v-if="calendarTasks.filter(t => t.status === status).length === 0" class="h-32 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center opacity-40">
              <p class="text-[9px] font-black uppercase tracking-widest text-slate-400">Aucune mission</p>
           </div>
 

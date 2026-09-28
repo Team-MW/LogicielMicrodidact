@@ -47,15 +47,6 @@ const isUpdating = ref(false)
 
 onMounted(async () => {
   await fetchData()
-  refreshInterval.value = setInterval(() => {
-    if (trackingData.value.length === 0) {
-      fetchData()
-    }
-  }, 3000)
-})
-
-onUnmounted(() => {
-  if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
 const fetchData = async () => {

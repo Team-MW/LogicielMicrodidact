@@ -23,6 +23,8 @@ interface Project {
   jotform_completed?: boolean
   payment_status?: string
   payment_amount?: string
+  payment_end_date?: string
+  payment_note?: string
 }
 
 interface Note {
@@ -181,20 +183,6 @@ onMounted(() => {
   fetchStripeSubscriptions()
   fetchProjects()
   fetchNotes()
-
-  // Système de récupération automatique uniquement avant le premier chargement
-  refreshInterval.value = setInterval(() => {
-    if (!isInitiallyLoaded.value) {
-      fetchProjects()
-    } else {
-      clearInterval(refreshInterval.value)
-      refreshInterval.value = null
-    }
-  }, 3000)
-})
-
-onUnmounted(() => {
-  if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
 // Filtered Projects
@@ -403,7 +391,9 @@ const saveProjectUpdate = async () => {
     progress: editingProjectData.value.progress,
     status: editingProjectData.value.status,
     payment_status: editingProjectData.value.payment_status || 'Impayé',
-    payment_amount: editingProjectData.value.payment_status === 'Manuel' ? editingProjectData.value.payment_amount : null,
+    payment_amount: ['Manuel', 'Partiel'].includes(editingProjectData.value.payment_status) ? editingProjectData.value.payment_amount : null,
+    payment_end_date: ['Temporaire', 'Partiel'].includes(editingProjectData.value.payment_status) ? editingProjectData.value.payment_end_date : null,
+    payment_note: editingProjectData.value.payment_note || null,
     stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
     search_console: editingProjectData.value.search_console || false,
     domain_name: editingProjectData.value.domain_name || null
@@ -440,7 +430,19 @@ const getComputedPaymentStatus = (project: Project) => {
   if (project.status === 'Abandonné') return 'Abandonné'
   if (project.status === 'Traité') return 'Payé'
   if (project.payment_status === 'VIP') return 'VIP'
+  if (project.payment_status === 'Temporaire') {
+    const isExpired = project.payment_end_date && new Date(project.payment_end_date) < new Date()
+    if (isExpired) return `Impayé (Période gratuite expirée)`
+    return `Gratuit jusqu'au ${project.payment_end_date ? project.payment_end_date.split('-').reverse().join('/') : '?'}`
+  }
   if (project.payment_status === 'Manuel') return `Payé ${project.payment_amount ? project.payment_amount + '€' : ''}`
+  if (project.payment_status === 'Partiel') {
+    const isExpired = project.payment_end_date && new Date(project.payment_end_date) < new Date()
+    const amt = project.payment_amount ? project.payment_amount + '€' : '?'
+    const dateStr = project.payment_end_date ? project.payment_end_date.split('-').reverse().join('/') : '?'
+    if (isExpired) return `Impayé (Échéance dépassée, a payé ${amt})`
+    return `Paiement partiel (${amt}) - Reste dû au ${dateStr}`
+  }
   
   if (project.payment_status === 'Stripe') {
     if (project.stripe_customer_id) {
@@ -460,9 +462,11 @@ const getComputedPaymentStatus = (project: Project) => {
 const getPaymentBadgeColor = (project: Project) => {
   const status = getComputedPaymentStatus(project)
   if (status === 'Abandonné') return 'bg-slate-100 text-slate-500 border-slate-200'
-  if (status === 'VIP') return 'bg-purple-50 text-purple-700 border-purple-200'
-  if (status.includes('Payé')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'VIP' || status.startsWith('Gratuit jusqu\'au')) return 'bg-purple-50 text-purple-700 border-purple-200'
+  if (status.includes('Paiement partiel')) return 'bg-amber-50 text-amber-700 border-amber-200'
   if (status.includes('Stripe (Non lié)')) return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (status.startsWith('Impayé')) return 'bg-rose-50 text-rose-700 border-rose-200'
+  if (status.includes('Payé')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
   return 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
@@ -474,7 +478,7 @@ const exportCSV = () => {
   
   const headers = [
     "Nom du Projet", "Client/Site", "Statut", "Progression (%)", 
-    "Date limite", "Priorité", "Statut Paiement", "Montant Payé",
+    "Date limite", "Priorité", "Statut Paiement", "Montant Payé", "Date fin Gratuit", "Note Paiement",
     "Search Console", "Nom de Domaine", "Mentions Légales", "Formulaire Jotform"
   ]
   
@@ -490,7 +494,9 @@ const exportCSV = () => {
       escapeCSV(p.deadline),
       escapeCSV(p.priority),
       escapeCSV(getComputedPaymentStatus(p)),
-      escapeCSV(p.payment_status === 'Manuel' && p.payment_amount ? p.payment_amount + '€' : ''),
+      escapeCSV(['Manuel', 'Partiel'].includes(p.payment_status || '') && p.payment_amount ? p.payment_amount + '€' : ''),
+      escapeCSV(p.payment_end_date || ''),
+      escapeCSV(p.payment_note || ''),
       escapeCSV(p.search_console ? 'Oui' : 'Non'),
       escapeCSV(p.domain_name || 'Non'),
       escapeCSV(p.legal_mentions ? 'Oui' : 'Non'),
@@ -719,12 +725,22 @@ const exportCSV = () => {
                 <select v-model="editingProjectData.payment_status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
                   <option value="Impayé">Impayé</option>
                   <option value="Stripe">Stripe (Prélèvement auto)</option>
-                  <option value="Manuel">Manuel (Somme spécifique)</option>
-                  <option value="VIP">VIP (Gratuit)</option>
+                  <option value="Manuel">Payé (Manuel / Montant libre)</option>
+                  <option value="Partiel">Paiement Partiel (Avec échéance)</option>
+                  <option value="VIP">VIP (Gratuit illimité)</option>
+                  <option value="Temporaire">Période Gratuite (Avec date de fin)</option>
                 </select>
-                <div v-if="editingProjectData.payment_status === 'Manuel'" class="pt-2">
+                <div v-if="['Manuel', 'Partiel'].includes(editingProjectData.payment_status)" class="pt-2">
                   <label class="text-xs font-bold text-slate-700">Montant payé (€)</label>
                   <input type="number" v-model="editingProjectData.payment_amount" placeholder="ex: 500" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
+                </div>
+                <div v-if="['Temporaire', 'Partiel'].includes(editingProjectData.payment_status)" class="pt-2">
+                  <label class="text-xs font-bold text-slate-700">{{ editingProjectData.payment_status === 'Partiel' ? 'Date limite pour le reste' : 'Gratuit jusqu\'au' }}</label>
+                  <input type="date" v-model="editingProjectData.payment_end_date" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
+                </div>
+                <div class="pt-2">
+                  <label class="text-xs font-bold text-slate-700">Note sur le paiement (Optionnel)</label>
+                  <input type="text" v-model="editingProjectData.payment_note" placeholder="ex: A eu 6 mois gratuit..." class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
                 </div>
               </div>
             </div>
@@ -850,9 +866,18 @@ const exportCSV = () => {
                 ></span>
               </button>
             </div>
+
+            <!-- Note de paiement (Aperçu) -->
+            <div v-if="selectedProject?.payment_note" class="col-span-1 md:col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3 shadow-sm">
+              <div class="mt-0.5"><FileText class="h-4 w-4 text-amber-600" /></div>
+              <div>
+                <h4 class="text-sm font-bold text-amber-900">Note de Paiement</h4>
+                <p class="text-xs text-amber-700 mt-1">{{ selectedProject.payment_note }}</p>
+              </div>
+            </div>
             
             <!-- Domain Name Input -->
-            <div class="col-span-1 bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-2 relative shadow-sm">
+            <div class="col-span-1 md:col-span-2 bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-2 relative shadow-sm">
               <div class="flex items-center gap-3 mb-1">
                 <div class="p-2 rounded-lg" :class="selectedProject?.domain_name ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
                   <Globe class="h-4 w-4" />

@@ -44,18 +44,9 @@ const fetchCustomers = async () => {
 onMounted(() => {
   fetchTransactions()
   fetchCustomers()
-
-  // Système de récupération automatique si pas de données (toutes les 3s)
-  refreshInterval.value = setInterval(() => {
-    if (transactions.value.length === 0) {
-      fetchTransactions()
-    }
-  }, 3000)
 })
 
-onUnmounted(() => {
-  if (refreshInterval.value) clearInterval(refreshInterval.value)
-})
+
 
 const getCustomerName = (customerId: any) => {
   if (!customerId) return 'Client Inconnu'

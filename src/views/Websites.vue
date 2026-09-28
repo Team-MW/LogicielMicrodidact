@@ -173,17 +173,6 @@ const handleCreateSubscription = async () => {
 onMounted(() => {
   fetchStripeCustomers()
   fetchData()
-  
-  // Système de récupération automatique si pas de données (toutes les 3s)
-  refreshInterval.value = setInterval(() => {
-    if (websites.value.length === 0) {
-      fetchData()
-    }
-  }, 3000)
-})
-
-onUnmounted(() => {
-  if (refreshInterval.value) clearInterval(refreshInterval.value)
 })
 
 const copyLink = (url: string) => {

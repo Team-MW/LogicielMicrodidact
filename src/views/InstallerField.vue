@@ -228,9 +228,6 @@ const goToReport = (id: number) => {
 
 onMounted(() => {
   fetchInstallations()
-  refreshInterval.value = setInterval(() => {
-    fetchInstallations(true)
-  }, 10000)
 })
 </script>
 

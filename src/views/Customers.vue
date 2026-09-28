@@ -48,14 +48,6 @@ const isInitiallyLoaded = ref(false)
 
 onMounted(async () => {
   await fetchData()
-  refreshInterval.value = setInterval(() => {
-    if (!isInitiallyLoaded.value) {
-      fetchData()
-    } else {
-      clearInterval(refreshInterval.value)
-      refreshInterval.value = null
-    }
-  }, 3000)
 })
 
 const fetchData = async () => {
@@ -64,10 +56,6 @@ const fetchData = async () => {
     customers.value = await api.getCustomers()
     websites.value = await api.getWebsites()
     isInitiallyLoaded.value = true
-    if (refreshInterval.value) {
-      clearInterval(refreshInterval.value)
-      refreshInterval.value = null
-    }
   } catch (error) {
     console.error('Error fetching customers:', error)
   } finally {

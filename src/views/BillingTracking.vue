@@ -15,6 +15,8 @@ interface Project {
   deadline: string
   priority: string
   team: string[]
+  payment_status?: string
+  payment_amount?: string
 }
 
 interface Note {
@@ -49,14 +51,14 @@ const isLoadingStripe = ref(false)
 const fetchStripeData = async () => {
   isLoadingStripe.value = true
   try {
-    const [linksRes, subsRes, invRes] = await Promise.all([
-      fetch('/api/stripe/payment-links'),
-      fetch('/api/stripe/subscriptions'),
-      fetch('/api/stripe/invoices')
+    const [linksRes, subsRes, invRes] = await Promise.allSettled([
+      fetch('/api/stripe/payment-links').then(r => r.ok ? r.json() : []),
+      fetch('/api/stripe/subscriptions').then(r => r.ok ? r.json() : []),
+      fetch('/api/stripe/invoices').then(r => r.ok ? r.json() : [])
     ])
-    if (linksRes.ok) stripeLinks.value = await linksRes.json()
-    if (subsRes.ok) stripeSubscriptions.value = await subsRes.json()
-    if (invRes.ok) stripeInvoices.value = await invRes.json()
+    if (linksRes.status === 'fulfilled') stripeLinks.value = linksRes.value
+    if (subsRes.status === 'fulfilled') stripeSubscriptions.value = subsRes.value
+    if (invRes.status === 'fulfilled') stripeInvoices.value = invRes.value
   } catch (error) {
     console.error('Erreur lors de la récupération des données Stripe', error)
   } finally {
@@ -65,11 +67,14 @@ const fetchStripeData = async () => {
 }
 
 
+const isInitiallyLoaded = ref(false)
+
 const fetchProjects = async () => {
   const { data, error } = await supabase.from('billing_projects').select('*').order('created_at', { ascending: false })
   if (data && !error) {
     projects.value = data
-    if (data.length > 0 && refreshInterval.value) {
+    isInitiallyLoaded.value = true
+    if (refreshInterval.value) {
       clearInterval(refreshInterval.value)
       refreshInterval.value = null
     }
@@ -109,10 +114,13 @@ onMounted(() => {
   fetchNotes()
   fetchStripeData()
 
-  // Système de récupération automatique si pas de données (toutes les 3s)
+  // Système de récupération automatique uniquement avant le premier chargement
   refreshInterval.value = setInterval(() => {
-    if (projects.value.length === 0) {
+    if (!isInitiallyLoaded.value) {
       fetchProjects()
+    } else {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
     }
   }, 3000)
 })
@@ -123,12 +131,14 @@ onUnmounted(() => {
 
 // Filtered Projects
 const filteredProjects = computed(() => {
-  let base = projects.value
+  let base = [...projects.value]
   
   if (activeFilter.value === 'En cours') base = base.filter(p => p.status === 'En cours')
   if (activeFilter.value === 'Terminés') base = base.filter(p => p.status === 'Terminé')
   if (activeFilter.value === 'Traité') base = base.filter(p => p.status === 'Traité')
   if (activeFilter.value === 'Nouveaux') base = base.filter(p => p.status === 'Planifié')
+  if (activeFilter.value === 'Abandonnés') base = base.filter(p => p.status === 'Abandonné')
+  if (activeFilter.value === 'Impayés') base = base.filter(p => getComputedPaymentStatus(p) === 'Impayé')
   
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim()
@@ -137,6 +147,15 @@ const filteredProjects = computed(() => {
       (p.client && p.client.toLowerCase().includes(query))
     )
   }
+  
+  // Tri : mettre les impayés en premier
+  base.sort((a, b) => {
+    const aImpaye = getComputedPaymentStatus(a) === 'Impayé'
+    const bImpaye = getComputedPaymentStatus(b) === 'Impayé'
+    if (aImpaye && !bImpaye) return -1
+    if (!aImpaye && bImpaye) return 1
+    return 0 // Garder l'ordre par défaut (created_at DESC via supabase)
+  })
   
   return base
 })
@@ -250,7 +269,9 @@ const saveProjectUpdate = async () => {
     status: editingProjectData.value.status,
     progress: editingProjectData.value.progress,
     deadline: editingProjectData.value.deadline,
-    priority: editingProjectData.value.priority
+    priority: editingProjectData.value.priority,
+    payment_status: editingProjectData.value.payment_status || 'Impayé',
+    payment_amount: editingProjectData.value.payment_status === 'Manuel' ? editingProjectData.value.payment_amount : null
   }).eq('id', editingProjectData.value.id)
   
   if (!error) {
@@ -261,15 +282,36 @@ const saveProjectUpdate = async () => {
     }
     isEditing.value = false
     editingProjectData.value = null
+  } else {
+    alert("Erreur lors de la sauvegarde : " + error.message)
+    console.error("Save error:", error)
   }
 }
 
 
 const getStatusColor = (status: string) => {
+  if (status === 'Abandonné') return 'bg-slate-100 text-slate-500 border-slate-200'
   if (status === 'Traité') return 'bg-blue-50 text-blue-700 border-blue-200'
   if (status === 'Terminé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
   if (status === 'En cours') return 'bg-indigo-50 text-indigo-700 border-indigo-200'
   return 'bg-amber-50 text-amber-700 border-amber-200'
+}
+
+const getComputedPaymentStatus = (project: Project) => {
+  if (project.status === 'Abandonné') return 'Abandonné'
+  if (project.status === 'Traité') return 'Payé'
+  if (project.payment_status === 'VIP') return 'VIP'
+  if (project.payment_status === 'Manuel') return `Payé ${project.payment_amount ? project.payment_amount + '€' : ''}`
+  if (project.payment_status === 'Payé') return 'Payé'
+  return 'Impayé'
+}
+
+const getPaymentBadgeColor = (project: Project) => {
+  const status = getComputedPaymentStatus(project)
+  if (status === 'Abandonné') return 'bg-slate-100 text-slate-500 border-slate-200'
+  if (status === 'VIP') return 'bg-purple-50 text-purple-700 border-purple-200'
+  if (status.includes('Payé')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  return 'bg-rose-50 text-rose-700 border-rose-200'
 }
 </script>
 
@@ -329,11 +371,11 @@ const getStatusColor = (status: string) => {
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
         <button 
-          v-for="filter in ['Tous', 'En cours', 'Terminés', 'Traité', 'Nouveaux']" 
+          v-for="filter in ['Tous', 'Impayés', 'En cours', 'Terminés', 'Traité', 'Nouveaux', 'Abandonnés']" 
           :key="filter"
           @click="activeFilter = filter"
           class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
-          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+          :class="[activeFilter === filter ? (filter === 'Impayés' ? 'bg-rose-100 text-rose-700 shadow-xs' : 'bg-white text-slate-900 shadow-xs') : 'text-slate-500 hover:text-slate-700']"
         >
           {{ filter }}
         </button>
@@ -358,9 +400,14 @@ const getStatusColor = (status: string) => {
       >
         <CardHeader class="p-4 pb-2 space-y-1">
           <div class="flex items-center justify-between">
-            <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
-              {{ project.status === 'Planifié' ? 'Nouveau' : project.status }}
-            </Badge>
+            <div class="flex items-center gap-1">
+              <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
+                {{ project.status === 'Planifié' ? 'Nouveau' : project.status }}
+              </Badge>
+              <Badge variant="outline" :class="[getPaymentBadgeColor(project), 'text-[10px] px-2 py-0.5 font-bold border']">
+                {{ getComputedPaymentStatus(project) }}
+              </Badge>
+            </div>
             <span class="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
               <Calendar class="h-3 w-3 text-slate-400" /> {{ project.deadline }}
             </span>
@@ -538,10 +585,15 @@ const getStatusColor = (status: string) => {
         
         <!-- Modal Header -->
         <div class="p-6 border-b border-slate-100 flex items-start justify-between">
-          <div class="space-y-1">
-            <Badge variant="outline" :class="[getStatusColor(selectedProject.status), 'text-xs px-2 py-0.5 font-bold border']">
-              {{ selectedProject.status === 'Planifié' ? 'Nouveau' : selectedProject.status }}
-            </Badge>
+          <div class="space-y-1 flex flex-col">
+            <div class="flex items-center gap-2">
+              <Badge variant="outline" :class="[getStatusColor(selectedProject.status), 'text-xs px-2 py-0.5 font-bold border w-fit']">
+                {{ selectedProject.status === 'Planifié' ? 'Nouveau' : selectedProject.status }}
+              </Badge>
+              <Badge variant="outline" :class="[getPaymentBadgeColor(selectedProject), 'text-xs px-2 py-0.5 font-bold border w-fit']">
+                {{ getComputedPaymentStatus(selectedProject) }}
+              </Badge>
+            </div>
             <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject.name }}</h3>
             <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject.client)"></span></p>
           </div>
@@ -594,11 +646,24 @@ const getStatusColor = (status: string) => {
                   <option value="En cours">En cours</option>
                   <option value="Terminé">Terminé</option>
                   <option value="Traité">Traité</option>
+                  <option value="Abandonné">Abandonné</option>
                 </select>
               </div>
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-700">Progression (%)</label>
                 <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Mode de paiement</label>
+              <select v-model="editingProjectData.payment_status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                <option value="Impayé">Impayé</option>
+                <option value="Manuel">Manuel (Somme spécifique)</option>
+                <option value="VIP">VIP (Gratuit)</option>
+              </select>
+              <div v-if="editingProjectData.payment_status === 'Manuel'" class="pt-2">
+                <label class="text-xs font-bold text-slate-700">Montant payé (€)</label>
+                <input type="number" v-model="editingProjectData.payment_amount" placeholder="ex: 500" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
               </div>
             </div>
             <div class="flex justify-end gap-2 pt-2">

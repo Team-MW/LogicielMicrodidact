@@ -9,10 +9,10 @@ export default async function handler(req, res) {
 
   try {
     const invoices = await stripe.invoices.list({
-      limit: 100,
-      expand: ['data.customer'],
+      limit: 50,
     });
 
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
     res.status(200).json(invoices.data);
   } catch (error) {
     console.error('Stripe error:', error);

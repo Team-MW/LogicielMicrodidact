@@ -9,11 +9,12 @@ export default async function handler(req, res) {
 
   try {
     const subscriptions = await stripe.subscriptions.list({
-      limit: 100,
+      limit: 50,
       status: 'active',
       expand: ['data.customer', 'data.plan.product'],
     });
 
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
     res.status(200).json(subscriptions.data);
   } catch (error) {
     console.error('Stripe error:', error);

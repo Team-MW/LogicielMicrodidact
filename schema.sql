@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS projects (
     progress INTEGER DEFAULT 0,
     deadline TEXT,
     priority TEXT DEFAULT 'Moyenne',
+    payment_status TEXT DEFAULT 'Impayé',
+    payment_amount TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -32,6 +34,8 @@ CREATE TABLE IF NOT EXISTS software_projects (
     progress INTEGER DEFAULT 0,
     deadline TEXT,
     priority TEXT DEFAULT 'Moyenne',
+    payment_status TEXT DEFAULT 'Impayé',
+    payment_amount TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -199,6 +203,8 @@ CREATE TABLE IF NOT EXISTS billing_projects (
     progress INTEGER DEFAULT 0,
     deadline TEXT,
     priority TEXT DEFAULT 'Moyenne',
+    payment_status TEXT DEFAULT 'Impayé',
+    payment_amount TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

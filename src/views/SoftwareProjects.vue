@@ -21,6 +21,8 @@ interface Project {
   domain_name?: string
   legal_mentions?: boolean
   jotform_completed?: boolean
+  payment_status?: string
+  payment_amount?: string
 }
 
 interface Note {
@@ -52,14 +54,24 @@ const newProject = ref({
   priority: 'Moyenne'
 })
 
+const isInitiallyLoaded = ref(false)
+
 const fetchProjects = async () => {
-  const { data, error } = await supabase.from('software_projects').select('*').order('created_at', { ascending: false })
-  if (data && !error) {
-    projects.value = data
-    if (data.length > 0 && refreshInterval.value) {
-      clearInterval(refreshInterval.value)
-      refreshInterval.value = null
+  try {
+    const { data, error } = await supabase.from('software_projects').select('*').order('created_at', { ascending: false })
+    if (error) {
+      console.error('fetchProjects error:', error)
     }
+    if (data && !error) {
+      projects.value = data
+      isInitiallyLoaded.value = true
+      if (refreshInterval.value) {
+        clearInterval(refreshInterval.value)
+        refreshInterval.value = null
+      }
+    }
+  } catch (err) {
+    console.error('fetchProjects exception:', err)
   }
 }
 
@@ -84,22 +96,43 @@ const parseTextWithLinks = (text: string) => {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g
+  const urlRegex = /(https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/ig
   return escaped.replace(urlRegex, (url) => {
-    const href = url.startsWith('www') ? `https://${url}` : url
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all">${url}</a>`
+    let cleanUrl = url
+    let punctuation = ''
+    if (/[.,;!?]$/.test(cleanUrl)) {
+      punctuation = cleanUrl.slice(-1)
+      cleanUrl = cleanUrl.slice(0, -1)
+    }
+    const href = cleanUrl.startsWith('http') ? cleanUrl : `https://${cleanUrl}`
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all" onclick="event.stopPropagation()">${cleanUrl}</a>${punctuation}`
   })
+}
+
+const stripeSubscriptions = ref<any[]>([])
+const fetchStripeSubscriptions = async () => {
+  try {
+    const res = await fetch('/api/stripe/subscriptions')
+    const data = await res.json()
+    stripeSubscriptions.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error('Failed to fetch stripe subscriptions', error)
+  }
 }
 
 onMounted(() => {
   fetchProjects()
   fetchNotes()
   fetchStripeCustomers()
+  fetchStripeSubscriptions()
 
-  // Système de récupération automatique si pas de données (toutes les 3s)
+  // Système de récupération automatique uniquement avant le premier chargement
   refreshInterval.value = setInterval(() => {
-    if (projects.value.length === 0) {
+    if (!isInitiallyLoaded.value) {
       fetchProjects()
+    } else {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
     }
   }, 3000)
 })
@@ -140,12 +173,14 @@ onUnmounted(() => {
 
 // Filtered Projects
 const filteredProjects = computed(() => {
-  let base = projects.value
+  let base = [...projects.value]
   
   if (activeFilter.value === 'En cours') base = base.filter(p => p.status === 'En cours')
   if (activeFilter.value === 'Terminés') base = base.filter(p => p.status === 'Terminé')
   if (activeFilter.value === 'Traité') base = base.filter(p => p.status === 'Traité')
   if (activeFilter.value === 'Nouveaux') base = base.filter(p => p.status === 'Planifié')
+  if (activeFilter.value === 'Abandonnés') base = base.filter(p => p.status === 'Abandonné')
+  if (activeFilter.value === 'Impayés') base = base.filter(p => getComputedPaymentStatus(p) === 'Impayé')
   
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim()
@@ -154,6 +189,15 @@ const filteredProjects = computed(() => {
       (p.client && p.client.toLowerCase().includes(query))
     )
   }
+  
+  // Tri : mettre les impayés en premier
+  base.sort((a, b) => {
+    const aImpaye = getComputedPaymentStatus(a) === 'Impayé'
+    const bImpaye = getComputedPaymentStatus(b) === 'Impayé'
+    if (aImpaye && !bImpaye) return -1
+    if (!aImpaye && bImpaye) return 1
+    return 0 // Garder l'ordre par défaut (created_at DESC via supabase)
+  })
   
   return base
 })
@@ -220,6 +264,43 @@ const updateDomainName = async (projectId: number, newDomain: string) => {
   }
 }
 
+const linkStripeCustomerDirect = async (projectId: number, custId: string | null) => {
+  const { error } = await supabase.from('software_projects').update({ stripe_customer_id: custId }).eq('id', projectId)
+  if (!error) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (project) {
+      project.stripe_customer_id = custId || undefined
+      if (selectedProject.value && selectedProject.value.id === projectId) {
+        selectedProject.value.stripe_customer_id = custId || undefined
+      }
+    }
+    isStripeDropdownOpen.value = false
+    stripeCustomerSearch.value = ''
+    if (custId) {
+      fetchStripeInvoices(custId)
+    }
+  } else {
+    alert("Erreur lors de la liaison Stripe : " + error.message)
+  }
+}
+
+const unlinkStripeCustomer = async (projectId: number) => {
+  if (confirm('Voulez-vous vraiment délier ce client Stripe ?')) {
+    await linkStripeCustomerDirect(projectId, null)
+    stripeInvoices.value = []
+  }
+}
+
+const getSetupProgress = (project: Project | null) => {
+  if (!project) return 0
+  let count = 0
+  if (project.search_console) count++
+  if (project.domain_name) count++
+  if (project.legal_mentions) count++
+  if (project.jotform_completed) count++
+  return count
+}
+
 const deleteNote = async (noteId: number, projectId: number) => {
   if (confirm('Supprimer cette note ?')) {
     const { error } = await supabase.from('software_project_notes').delete().eq('id', noteId)
@@ -235,8 +316,13 @@ const deleteProject = async (id: number) => {
     await supabase.from('software_project_notes').delete().eq('project_id', id)
 
     // Puis supprimer le projet
-    const { error } = await supabase.from('software_projects').delete().eq('id', id)
-    if (!error) {
+    const { error, data } = await supabase.from('software_projects').delete().eq('id', id).select()
+    if (error) {
+      console.error('Erreur suppression logiciel:', error)
+      alert('Impossible de supprimer le logiciel. Erreur: ' + error.message)
+    } else if (!data || data.length === 0) {
+      alert("Le logiciel n'a pas pu être supprimé. Vérifiez vos permissions RLS (Delete) dans Supabase.")
+    } else {
       projects.value = projects.value.filter(p => p.id !== id)
       selectedProject.value = null
     }
@@ -316,6 +402,8 @@ const saveProjectUpdate = async () => {
     progress: editingProjectData.value.progress,
     deadline: editingProjectData.value.deadline,
     priority: editingProjectData.value.priority,
+    payment_status: editingProjectData.value.payment_status || 'Impayé',
+    payment_amount: editingProjectData.value.payment_status === 'Manuel' ? editingProjectData.value.payment_amount : null,
     stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
     search_console: editingProjectData.value.search_console || false,
     domain_name: editingProjectData.value.domain_name || null
@@ -333,15 +421,49 @@ const saveProjectUpdate = async () => {
     }
     isEditing.value = false
     editingProjectData.value = null
+  } else {
+    alert("Erreur lors de la sauvegarde : " + error.message)
+    console.error("Save error:", error)
   }
 }
 
 
 const getStatusColor = (status: string) => {
+  if (status === 'Abandonné') return 'bg-slate-100 text-slate-500 border-slate-200'
   if (status === 'Traité') return 'bg-blue-50 text-blue-700 border-blue-200'
   if (status === 'Terminé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
   if (status === 'En cours') return 'bg-indigo-50 text-indigo-700 border-indigo-200'
   return 'bg-amber-50 text-amber-700 border-amber-200'
+}
+
+const getComputedPaymentStatus = (project: Project) => {
+  if (project.status === 'Abandonné') return 'Abandonné'
+  if (project.status === 'Traité') return 'Payé'
+  if (project.payment_status === 'VIP') return 'VIP'
+  if (project.payment_status === 'Manuel') return `Payé ${project.payment_amount ? project.payment_amount + '€' : ''}`
+  
+  if (project.payment_status === 'Stripe') {
+    if (project.stripe_customer_id) {
+      const hasActiveSub = stripeSubscriptions.value.some(sub => 
+        (sub.customer === project.stripe_customer_id || sub.customer?.id === project.stripe_customer_id) && 
+        sub.status === 'active'
+      )
+      return hasActiveSub ? 'Payé (Stripe)' : 'Impayé (Stripe)'
+    }
+    return 'Stripe (Non lié)'
+  }
+  
+  if (project.payment_status === 'Payé') return 'Payé'
+  return 'Impayé'
+}
+
+const getPaymentBadgeColor = (project: Project) => {
+  const status = getComputedPaymentStatus(project)
+  if (status === 'Abandonné') return 'bg-slate-100 text-slate-500 border-slate-200'
+  if (status === 'VIP') return 'bg-purple-50 text-purple-700 border-purple-200'
+  if (status.includes('Payé')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status.includes('Stripe (Non lié)')) return 'bg-amber-50 text-amber-700 border-amber-200'
+  return 'bg-rose-50 text-rose-700 border-rose-200'
 }
 </script>
 
@@ -361,11 +483,11 @@ const getStatusColor = (status: string) => {
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-xl w-fit shrink-0">
         <button 
-          v-for="filter in ['Tous', 'En cours', 'Terminés', 'Traité', 'Nouveaux']" 
+          v-for="filter in ['Tous', 'Impayés', 'En cours', 'Terminés', 'Traité', 'Nouveaux', 'Abandonnés']" 
           :key="filter"
           @click="activeFilter = filter"
           class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
-          :class="[activeFilter === filter ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700']"
+          :class="[activeFilter === filter ? (filter === 'Impayés' ? 'bg-rose-100 text-rose-700 shadow-xs' : 'bg-white text-slate-900 shadow-xs') : 'text-slate-500 hover:text-slate-700']"
         >
           {{ filter }}
         </button>
@@ -376,7 +498,7 @@ const getStatusColor = (status: string) => {
         <input 
           v-model="searchQuery"
           type="text"
-          placeholder="Rechercher un projet, client..."
+          placeholder="Rechercher un projet, site internet..."
           class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400 shadow-xs"
         />
       </div>
@@ -390,15 +512,23 @@ const getStatusColor = (status: string) => {
       >
         <CardHeader class="p-4 pb-2 space-y-1">
           <div class="flex items-center justify-between">
-            <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
-              {{ project.status === 'Planifié' ? 'Nouveau' : project.status }}
-            </Badge>
+            <div class="flex items-center gap-1">
+              <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
+                {{ project.status === 'Planifié' ? 'Nouveau' : project.status }}
+              </Badge>
+              <Badge variant="outline" :class="[getPaymentBadgeColor(project), 'text-[10px] px-2 py-0.5 font-bold border']">
+                {{ getComputedPaymentStatus(project) }}
+              </Badge>
+              <Badge variant="outline" class="text-[10px] px-1.5 py-0.5 font-bold border bg-slate-50 text-slate-600" title="Options configurées">
+                {{ getSetupProgress(project) }}/4
+              </Badge>
+            </div>
             <span class="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
               <Calendar class="h-3 w-3 text-slate-400" /> {{ project.deadline }}
             </span>
           </div>
           <CardTitle class="text-base text-slate-900 font-bold tracking-tight truncate">{{ project.name }}</CardTitle>
-          <CardDescription class="text-slate-400 text-xs truncate">Client: <span v-html="parseTextWithLinks(project.client)"></span></CardDescription>
+          <CardDescription class="text-slate-400 text-xs truncate">Site Internet: <span v-html="parseTextWithLinks(project.client)"></span></CardDescription>
         </CardHeader>
         
         <CardContent class="p-4 pt-2 flex-1 flex flex-col justify-between gap-4" @click.stop>
@@ -460,16 +590,24 @@ const getStatusColor = (status: string) => {
 
     <!-- Modal: Project Details & Multiple Notes -->
     <div v-if="selectedProject" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="selectedProject = null; isEditing = false">
-      <div class="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" @click.stop>
+      <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" @click.stop>
         
         <!-- Modal Header -->
         <div class="p-6 border-b border-slate-100 flex items-start justify-between">
           <div class="space-y-1">
-            <Badge variant="outline" :class="[getStatusColor(selectedProject?.status || ''), 'text-xs px-2 py-0.5 font-bold border']">
-              {{ selectedProject?.status === 'Planifié' ? 'Nouveau' : selectedProject?.status }}
-            </Badge>
+            <div class="flex items-center gap-2">
+              <Badge variant="outline" :class="[getStatusColor(selectedProject?.status || ''), 'text-xs px-2 py-0.5 font-bold border']">
+                {{ selectedProject?.status === 'Planifié' ? 'Nouveau' : selectedProject?.status }}
+              </Badge>
+              <Badge variant="outline" :class="[getPaymentBadgeColor(selectedProject), 'text-xs px-2 py-0.5 font-bold border']">
+                {{ getComputedPaymentStatus(selectedProject) }}
+              </Badge>
+              <Badge variant="outline" class="text-[10px] px-2 py-0.5 font-bold border bg-slate-50 text-slate-600">
+                {{ getSetupProgress(selectedProject) }}/4 Configuré
+              </Badge>
+            </div>
             <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject?.name }}</h3>
-            <p class="text-slate-500 text-sm font-medium">Client: <span v-html="parseTextWithLinks(selectedProject?.client || '')"></span></p>
+            <p class="text-slate-500 text-sm font-medium">Site Internet: <span v-html="parseTextWithLinks(selectedProject?.client || '')"></span></p>
           </div>
           <div class="flex items-center gap-1">
             <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier le projet">
@@ -494,7 +632,7 @@ const getStatusColor = (status: string) => {
               <input v-model="editingProjectData.name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">Client</label>
+              <label class="text-xs font-bold text-slate-700">Site Internet</label>
               <input v-model="editingProjectData.client" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
             </div>
             <div class="grid grid-cols-2 gap-4">
@@ -520,11 +658,25 @@ const getStatusColor = (status: string) => {
                   <option value="En cours">En cours</option>
                   <option value="Terminé">Terminé</option>
                   <option value="Traité">Traité</option>
+                  <option value="Abandonné">Abandonné</option>
                 </select>
               </div>
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-700">Progression (%)</label>
                 <input type="number" v-model="editingProjectData.progress" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Mode de paiement</label>
+                <select v-model="editingProjectData.payment_status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all">
+                  <option value="Impayé">Impayé</option>
+                  <option value="Stripe">Stripe (Prélèvement auto)</option>
+                  <option value="Manuel">Manuel (Somme spécifique)</option>
+                  <option value="VIP">VIP (Gratuit)</option>
+                </select>
+                <div v-if="editingProjectData.payment_status === 'Manuel'" class="pt-2">
+                  <label class="text-xs font-bold text-slate-700">Montant payé (€)</label>
+                  <input type="number" v-model="editingProjectData.payment_amount" placeholder="ex: 500" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
+                </div>
               </div>
             </div>
             <div class="space-y-1 relative">
@@ -584,7 +736,7 @@ const getStatusColor = (status: string) => {
               </div>
               
               <!-- Integration Toggles -->
-              <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+            <div class="col-span-1 bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
                 <div class="flex items-center gap-3">
                   <div class="p-2 rounded-lg" :class="selectedProject?.search_console ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
                     <Search class="h-4 w-4" />
@@ -606,7 +758,7 @@ const getStatusColor = (status: string) => {
                 </button>
               </div>
               
-              <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div class="col-span-1 bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
                 <div class="flex items-center gap-3">
                   <div class="p-2 rounded-lg" :class="selectedProject?.legal_mentions ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
                     <Scale class="h-4 w-4" />
@@ -628,7 +780,7 @@ const getStatusColor = (status: string) => {
                 </button>
               </div>
               
-              <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+              <div class="col-span-1 bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
                 <div class="flex items-center gap-3">
                   <div class="p-2 rounded-lg" :class="selectedProject?.jotform_completed ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
                     <ClipboardCheck class="h-4 w-4" />
@@ -651,7 +803,7 @@ const getStatusColor = (status: string) => {
               </div>
               
               <!-- Domain Name Input -->
-              <div class="col-span-2 mt-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-2 relative">
+            <div class="col-span-1 bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-2 relative shadow-sm">
                 <div class="flex items-center gap-3 mb-1">
                   <div class="p-2 rounded-lg" :class="selectedProject?.domain_name ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'">
                     <Globe class="h-4 w-4" />
@@ -695,48 +847,64 @@ const getStatusColor = (status: string) => {
             </div>
           </div>
 
-          <!-- Stripe Invoices Section -->
-          <div v-if="selectedProject?.stripe_customer_id" class="space-y-3">
-            <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5 border-t border-slate-100 pt-6">
-              <span class="bg-indigo-100 text-indigo-600 p-1 rounded-md">💳</span> Historique des Paiements (Stripe)
-            </h4>
-            
-            <div v-if="isLoadingInvoices" class="flex justify-center p-4">
-              <Loader2 class="h-6 w-6 animate-spin text-indigo-500" />
+
+          <!-- Stripe History / Linking -->
+          <div class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                Historique des Paiements (Stripe)
+              </h4>
+              <button v-if="selectedProject?.stripe_customer_id" @click="unlinkStripeCustomer(selectedProject.id)" class="text-[9px] text-rose-500 hover:underline font-bold">
+                Délier le client
+              </button>
             </div>
             
-            <div v-else-if="stripeInvoices.length > 0" class="space-y-2">
-              <div v-for="inv in stripeInvoices" :key="inv.id" class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
-                <div class="flex items-center gap-3">
-                  <div :class="[
-                    'p-2 rounded-lg',
-                    inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
-                    inv.status === 'open' ? 'bg-amber-50 text-amber-600' :
-                    'bg-rose-50 text-rose-600'
-                  ]">
-                    <FileText class="h-4 w-4" />
+            <div v-if="selectedProject?.stripe_customer_id">
+              <div v-if="isLoadingStripe" class="text-center py-4 text-slate-400 text-xs">
+                Chargement des paiements...
+              </div>
+              
+              <div v-else-if="stripeInvoices.length === 0" class="text-center py-4 text-slate-400 text-xs italic">
+                Aucun paiement trouvé pour ce client sur Stripe.
+              </div>
+              
+              <div v-else class="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                <div v-for="invoice in stripeInvoices" :key="invoice.id" class="flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
+                  <div class="flex flex-col">
+                    <span class="text-[10px] font-bold text-slate-400">{{ new Date(invoice.created * 1000).toLocaleDateString('fr-FR') }}</span>
+                    <span class="text-xs font-bold text-slate-900">{{ (invoice.amount / 100).toFixed(2) }} €</span>
                   </div>
                   <div>
-                    <p class="text-sm font-bold text-slate-900">
-                      {{ (inv.total / 100).toFixed(2) }} {{ inv.currency.toUpperCase() }}
-                    </p>
-                    <p class="text-xs text-slate-500">
-                      {{ new Date(inv.created * 1000).toLocaleDateString() }} - <a :href="inv.hosted_invoice_url" target="_blank" class="text-indigo-600 hover:underline">Voir facture</a>
-                    </p>
+                    <Badge :variant="invoice.status === 'succeeded' ? 'default' : 'destructive'" class="text-[10px]" :class="invoice.status === 'succeeded' ? 'bg-emerald-100 text-emerald-700' : ''">
+                      {{ invoice.status === 'succeeded' ? 'Payé' : 'Échoué' }}
+                    </Badge>
                   </div>
                 </div>
-                <Badge :variant="inv.status === 'paid' ? 'default' : inv.status === 'open' ? 'secondary' : 'destructive'">
-                  {{ inv.status === 'paid' ? 'Payé' : inv.status === 'open' ? 'En attente' : 'Échoué' }}
-                </Badge>
               </div>
             </div>
-            
-            <div v-else class="text-center py-6 text-slate-400 text-sm italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-              Aucun paiement trouvé pour ce client sur Stripe.
+            <div v-else class="relative">
+              <p class="text-[10px] text-slate-400 font-medium mb-2">Ce logiciel n'est pas lié à un client Stripe.</p>
+              <input 
+                v-model="stripeCustomerSearch" 
+                @focus="isStripeDropdownOpen = true"
+                class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all"
+                placeholder="Rechercher un client Stripe pour le lier..."
+              />
+              <div v-if="isStripeDropdownOpen" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-60 overflow-y-auto">
+                <div 
+                  v-for="cust in filteredStripeCustomers" 
+                  :key="cust.id"
+                  @click="linkStripeCustomerDirect(selectedProject?.id || 0, cust.id)"
+                  class="px-3 py-2 text-sm hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0"
+                >
+                  <div class="font-bold text-slate-700">{{ cust.name || 'Sans nom' }}</div>
+                  <div class="text-[10px] text-slate-500">{{ cust.email }}</div>
+                </div>
+                <div v-if="filteredStripeCustomers.length === 0" class="px-3 py-4 text-center text-xs text-slate-400">
+                  Aucun client trouvé
+                </div>
+              </div>
             </div>
-          </div>
-          <div v-else class="text-center py-4 border-t border-slate-100">
-            <p class="text-[10px] text-slate-400 font-medium">Ce logiciel n'est pas lié à un client Stripe.</p>
           </div>
 
           <!-- Notes Section -->
@@ -814,10 +982,10 @@ const getStatusColor = (status: string) => {
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-700">Client</label>
+            <label class="text-xs font-bold text-slate-700">Site Internet</label>
             <input 
               v-model="newProject.client"
-              placeholder="Ex: Interne ou Nom du client"
+              placeholder="Ex: https://www.mon-site.fr"
               class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium"
             />
           </div>

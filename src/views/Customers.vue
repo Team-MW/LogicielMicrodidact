@@ -44,11 +44,16 @@ const newCustomer = ref({
 const editingCustomer = ref<any>(null)
 const isEditingDialogVisible = ref(false)
 
+const isInitiallyLoaded = ref(false)
+
 onMounted(async () => {
   await fetchData()
   refreshInterval.value = setInterval(() => {
-    if (customers.value.length === 0) {
+    if (!isInitiallyLoaded.value) {
       fetchData()
+    } else {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
     }
   }, 3000)
 })
@@ -58,7 +63,8 @@ const fetchData = async () => {
   try {
     customers.value = await api.getCustomers()
     websites.value = await api.getWebsites()
-    if (customers.value.length > 0 && refreshInterval.value) {
+    isInitiallyLoaded.value = true
+    if (refreshInterval.value) {
       clearInterval(refreshInterval.value)
       refreshInterval.value = null
     }

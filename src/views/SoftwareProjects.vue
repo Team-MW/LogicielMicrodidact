@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Loader2, Globe, ExternalLink, Scale, ClipboardCheck } from 'lucide-vue-next'
+import { Calendar, Plus, FileText, X, Send, Trash2, Search, Pencil, Globe, ExternalLink, Scale, ClipboardCheck } from 'lucide-vue-next'
 
 interface Project {
   id: number
@@ -860,7 +860,7 @@ const getPaymentBadgeColor = (project: Project) => {
             </div>
             
             <div v-if="selectedProject?.stripe_customer_id">
-              <div v-if="isLoadingStripe" class="text-center py-4 text-slate-400 text-xs">
+              <div v-if="isLoadingInvoices" class="text-center py-4 text-slate-400 text-xs">
                 Chargement des paiements...
               </div>
               

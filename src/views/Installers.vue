@@ -211,6 +211,23 @@ const cancelEditing = () => {
   editingInstData.value = null
 }
 
+const deleteInstallation = async (id: number) => {
+  if (confirm('Êtes-vous sûr de vouloir supprimer cette intervention ?')) {
+    // Supprimer les notes enfants pour respecter la clé étrangère SQL
+    await supabase.from('installation_notes').delete().eq('installation_id', id)
+
+    // Puis supprimer l'intervention
+    const { error } = await supabase.from('installations').delete().eq('id', id)
+    if (error) {
+      alert("Erreur lors de la suppression : " + error.message)
+      console.error('Erreur suppression intervention:', error)
+    } else {
+      installations.value = installations.value.filter(i => i.id !== id)
+      selectedInst.value = null
+    }
+  }
+}
+
 const saveInstUpdate = async () => {
   if (!editingInstData.value) return
   
@@ -366,6 +383,9 @@ const getStatusColor = (status: string) => {
           <div class="flex items-center gap-1">
             <button v-if="!isEditing" @click="startEditing" class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" title="Modifier">
               <Pencil class="h-4 w-4" />
+            </button>
+            <button @click="deleteInstallation(selectedInst.id)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" title="Supprimer l'intervention">
+              <Trash2 class="h-5 w-5" />
             </button>
             <button @click="selectedInst = null; isEditing = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
               <X class="h-5 w-5" />

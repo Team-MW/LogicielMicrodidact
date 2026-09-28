@@ -21,3 +21,10 @@ CREATE POLICY "Allow all delete" ON software_project_notes FOR DELETE USING (tru
 
 DROP POLICY IF EXISTS "Allow all delete" ON billing_project_notes;
 CREATE POLICY "Allow all delete" ON billing_project_notes FOR DELETE USING (true);
+
+-- 5. Table Installations (Suivi Poseur)
+DROP POLICY IF EXISTS "Allow all delete" ON installations;
+CREATE POLICY "Allow all delete" ON installations FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Allow all delete" ON installation_notes;
+CREATE POLICY "Allow all delete" ON installation_notes FOR DELETE USING (true);

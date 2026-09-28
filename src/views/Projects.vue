@@ -392,7 +392,7 @@ const saveProjectUpdate = async () => {
     status: editingProjectData.value.status,
     payment_status: editingProjectData.value.payment_status || 'Impayé',
     payment_amount: ['Manuel', 'Partiel'].includes(editingProjectData.value.payment_status) ? editingProjectData.value.payment_amount : null,
-    payment_end_date: ['Temporaire', 'Partiel'].includes(editingProjectData.value.payment_status) ? editingProjectData.value.payment_end_date : null,
+    payment_end_date: ['Temporaire', 'Partiel', 'Manuel'].includes(editingProjectData.value.payment_status) ? editingProjectData.value.payment_end_date : null,
     payment_note: editingProjectData.value.payment_note || null,
     stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
     search_console: editingProjectData.value.search_console || false,
@@ -435,7 +435,13 @@ const getComputedPaymentStatus = (project: Project) => {
     if (isExpired) return `Impayé (Période gratuite expirée)`
     return `Gratuit jusqu'au ${project.payment_end_date ? project.payment_end_date.split('-').reverse().join('/') : '?'}`
   }
-  if (project.payment_status === 'Manuel') return `Payé ${project.payment_amount ? project.payment_amount + '€' : ''}`
+  if (project.payment_status === 'Manuel') {
+    const isExpired = project.payment_end_date && new Date(project.payment_end_date) < new Date()
+    const amt = project.payment_amount ? project.payment_amount + '€' : '?'
+    if (isExpired) return `Impayé (Échéance dépassée, a payé ${amt})`
+    if (project.payment_end_date) return `Payé partiel (${amt}) - Reste dû au ${project.payment_end_date.split('-').reverse().join('/')}`
+    return `Payé ${project.payment_amount ? project.payment_amount + '€' : ''}`
+  }
   if (project.payment_status === 'Partiel') {
     const isExpired = project.payment_end_date && new Date(project.payment_end_date) < new Date()
     const amt = project.payment_amount ? project.payment_amount + '€' : '?'
@@ -734,8 +740,12 @@ const exportCSV = () => {
                   <label class="text-xs font-bold text-slate-700">Montant payé (€)</label>
                   <input type="number" v-model="editingProjectData.payment_amount" placeholder="ex: 500" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
                 </div>
-                <div v-if="['Temporaire', 'Partiel'].includes(editingProjectData.payment_status)" class="pt-2">
-                  <label class="text-xs font-bold text-slate-700">{{ editingProjectData.payment_status === 'Partiel' ? 'Date limite pour le reste' : 'Gratuit jusqu\'au' }}</label>
+                <div v-if="['Temporaire', 'Partiel', 'Manuel'].includes(editingProjectData.payment_status)" class="pt-2">
+                  <label class="text-xs font-bold text-slate-700">
+                    <template v-if="editingProjectData.payment_status === 'Partiel'">Date limite pour le reste</template>
+                    <template v-else-if="editingProjectData.payment_status === 'Manuel'">Payé jusqu'au (Date limite)</template>
+                    <template v-else>Gratuit jusqu'au</template>
+                  </label>
                   <input type="date" v-model="editingProjectData.payment_end_date" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all mt-1" />
                 </div>
                 <div class="pt-2">

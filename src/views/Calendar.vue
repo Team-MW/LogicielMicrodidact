@@ -130,7 +130,7 @@ const getTasksForDay = (date: Date) => {
   return calendarTasks.value.filter(t => t.task_date === dateStr)
 }
 
-// Drag and Drop (Missions ONLY)
+// Drag and Drop (Missions ONLY) dezdez
 const draggedTask = ref<CalendarTask | null>(null)
 const onDragStart = (task: CalendarTask) => { draggedTask.value = task }
 

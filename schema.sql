@@ -228,3 +228,46 @@ CREATE POLICY "Allow all delete" ON billing_projects FOR DELETE USING (true);
 CREATE POLICY "Allow all read" ON billing_project_notes FOR SELECT USING (true);
 CREATE POLICY "Allow all write" ON billing_project_notes FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow all delete" ON billing_project_notes FOR DELETE USING (true);
+
+-- 10. Table: Commercial Projects (Projets Commerciaux)
+CREATE TABLE IF NOT EXISTS commercial_projects (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    client TEXT NOT NULL,
+    contact_name TEXT,
+    contact_phone TEXT,
+    contact_email TEXT,
+    address TEXT,
+    project_type TEXT DEFAULT 'Enseigne / Signalétique',
+    status TEXT NOT NULL DEFAULT 'Devis à faire',
+    priority TEXT DEFAULT 'Moyenne',
+    estimated_amount TEXT,
+    commercial_name TEXT DEFAULT 'Commercial',
+    deadline TEXT,
+    description TEXT,
+    photos TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 11. Table: Commercial Project Notes
+CREATE TABLE IF NOT EXISTS commercial_project_notes (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER REFERENCES commercial_projects(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    date TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE commercial_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commercial_project_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all read commercial_projects" ON commercial_projects FOR SELECT USING (true);
+CREATE POLICY "Allow all write commercial_projects" ON commercial_projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update commercial_projects" ON commercial_projects FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete commercial_projects" ON commercial_projects FOR DELETE USING (true);
+
+CREATE POLICY "Allow all read commercial_project_notes" ON commercial_project_notes FOR SELECT USING (true);
+CREATE POLICY "Allow all write commercial_project_notes" ON commercial_project_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update commercial_project_notes" ON commercial_project_notes FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete commercial_project_notes" ON commercial_project_notes FOR DELETE USING (true);
+

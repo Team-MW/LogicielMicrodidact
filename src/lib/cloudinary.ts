@@ -18,9 +18,9 @@ const sha1 = async (message: string): Promise<string> => {
     .join('')
 }
 
-export const uploadToCloudinary = async (file: File): Promise<string> => {
+export const uploadToCloudinary = async (file: File, customFolder?: string): Promise<string> => {
   const timestamp = Math.floor(Date.now() / 1000).toString()
-  const folder    = 'microdidact/chantiers'
+  const folder    = customFolder || 'microdidact/chantiers'
   const quality   = '100'        // Maximum quality - no compression
   const format    = 'jpg'        // JPEG output (best for photos)
 

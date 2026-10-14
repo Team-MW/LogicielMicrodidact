@@ -426,7 +426,7 @@ const getStatusColor = (status: string) => {
   return 'bg-amber-50 text-amber-700 border-amber-200'
 }
 
-const getComputedPaymentStatus = (project: Project) => {
+const getComputedPaymentStatus = (project: Project) => { try {
   if (project.status === 'Abandonné') return 'Abandonné'
   if (project.status === 'Traité') return 'Payé'
   if (project.payment_status === 'VIP') return 'VIP'
@@ -462,7 +462,7 @@ const getComputedPaymentStatus = (project: Project) => {
   }
   
   if (project.payment_status === 'Payé') return 'Payé'
-  return 'Impayé'
+  return 'Impayé' } catch (e) { console.error("Error in status:", e); return "Erreur"; }
 }
 
 const getPaymentBadgeColor = (project: Project) => {

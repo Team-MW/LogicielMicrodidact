@@ -16,7 +16,8 @@ import {
   CheckCircle,
   AlertCircle,
   List as ListIcon,
-  Pencil
+  Pencil,
+  Building2
 } from 'lucide-vue-next'
 
 interface CalendarTask {
@@ -245,6 +246,14 @@ const saveTaskUpdate = async () => {
       </div>
       
       <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <router-link 
+          to="/commercial-projects"
+          class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black text-xs uppercase tracking-wider transition-all border border-indigo-100/60 shadow-xs"
+        >
+          <Building2 class="h-4 w-4" />
+          <span>Section Projets Commerciaux & Photos</span>
+        </router-link>
+
         <!-- Date Navigation (Left) -->
         <div v-if="activeView === 'calendar'" class="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-left-4 w-full sm:w-auto justify-between sm:justify-start">
           <Button variant="ghost" size="icon" @click="prevWeek" class="h-8 w-8 rounded-lg text-slate-500">

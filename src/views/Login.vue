@@ -15,6 +15,7 @@ const error = ref(false)
 const verifyCode = () => {
   const isAllZeros = code.value.length > 0 && /^0+$/.test(code.value)
   const isPoseur = code.value === '1234' // Code for Amar
+  const isCommercial = code.value === '5678' // Code for Commercial
 
   if (isAllZeros) {
     sessionStorage.setItem('md_auth', 'true')
@@ -26,6 +27,11 @@ const verifyCode = () => {
     sessionStorage.setItem('md_role', 'poseur')
     const redirect = route.query.redirect as string
     router.push(redirect || '/installer')
+  } else if (isCommercial) {
+    sessionStorage.setItem('md_auth', 'true')
+    sessionStorage.setItem('md_role', 'commercial')
+    const redirect = route.query.redirect as string
+    router.push(redirect || '/commercial-space')
   } else {
     error.value = true
     code.value = ''

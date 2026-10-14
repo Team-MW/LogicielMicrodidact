@@ -21,7 +21,8 @@ import {
   Globe,
   Smartphone,
   TrendingUp,
-  CreditCard
+  CreditCard,
+  Building2
 } from 'lucide-vue-next'
 
 const isMobileMenuOpen = ref(false)
@@ -43,6 +44,7 @@ const isProfileMenuOpen = ref(false)
 
 const logout = () => {
   sessionStorage.removeItem('md_auth')
+  sessionStorage.removeItem('md_role')
   router.push('/login')
 }
 
@@ -53,12 +55,14 @@ const navItems = [
   { name: 'Suivi Logiciels', icon: Monitor, path: '/software' },
   { name: 'Suivi Facturation', icon: CreditCard, path: '/billing' },
   { name: 'Planning', icon: Calendar, path: '/calendar' },
+  { name: 'Projets Commerciaux', icon: Building2, path: '/commercial-projects' },
   { name: 'Planning Commercial', icon: TrendingUp, path: '/commercial' },
   { name: 'Clients', icon: Users, path: '/customers' },
   { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },
   { name: 'Domaines & Hébergement', icon: Globe, path: '/domains' },
   { name: 'Suivi Poseurs', icon: Truck, path: '/installers', special: true, mtAuto: true },
   { name: 'Espace Poseur (Amar)', icon: Smartphone, path: '/installer', special: true },
+  { name: 'Espace Commercial (Terrain)', icon: Smartphone, path: '/commercial-space', commercialSpecial: true },
 ]
 </script>
 
@@ -93,8 +97,8 @@ const navItems = [
           :class="[
             item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
-              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900')
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : item.commercialSpecial ? 'bg-indigo-600 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : item.commercialSpecial ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />
@@ -135,8 +139,8 @@ const navItems = [
           :class="[
             item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
-              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium')
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : item.commercialSpecial ? 'bg-indigo-600 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium' : item.commercialSpecial ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />

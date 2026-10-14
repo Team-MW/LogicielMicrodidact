@@ -53,16 +53,15 @@ const navItems = [
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
   { name: 'Suivi Vitrine', icon: Briefcase, path: '/projects' },
   { name: 'Suivi Logiciels', icon: Monitor, path: '/software' },
+  { name: 'Suivi Commercial', icon: Building2, path: '/commercial-projects' },
   { name: 'Suivi Facturation', icon: CreditCard, path: '/billing' },
   { name: 'Planning', icon: Calendar, path: '/calendar' },
-  { name: 'Projets Commerciaux', icon: Building2, path: '/commercial-projects' },
   { name: 'Planning Commercial', icon: TrendingUp, path: '/commercial' },
   { name: 'Clients', icon: Users, path: '/customers' },
   { name: 'Suivis Clients', icon: MessageSquareText, path: '/tracking' },
   { name: 'Domaines & Hébergement', icon: Globe, path: '/domains' },
   { name: 'Suivi Poseurs', icon: Truck, path: '/installers', special: true, mtAuto: true },
   { name: 'Espace Poseur (Amar)', icon: Smartphone, path: '/installer', special: true },
-  { name: 'Espace Commercial (Terrain)', icon: Smartphone, path: '/commercial-space', commercialSpecial: true },
 ]
 </script>
 

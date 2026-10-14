@@ -31,7 +31,7 @@ const verifyCode = () => {
     sessionStorage.setItem('md_auth', 'true')
     sessionStorage.setItem('md_role', 'commercial')
     const redirect = route.query.redirect as string
-    router.push(redirect || '/commercial-space')
+    router.push(redirect || '/commercial-projects')
   } else {
     error.value = true
     code.value = ''

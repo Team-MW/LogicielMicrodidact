@@ -1,164 +1,48 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { 
   Building2, 
+  Calendar, 
   Plus, 
+  FileText, 
+  X, 
+  Send, 
+  Trash2, 
   Search, 
+  Pencil, 
+  Download, 
+  Camera, 
+  Upload, 
   Phone, 
   Mail, 
   MapPin, 
-  Trash2, 
-  Pencil, 
-  Camera, 
-  Upload, 
-  X, 
-  CheckCircle2, 
-  Clock, 
-  Download, 
+  Loader2, 
   ChevronLeft, 
-  ChevronRight, 
-  MessageSquare, 
-  Send, 
-  LayoutGrid, 
-  List, 
-  TrendingUp,
-  DollarSign,
-  RefreshCw,
-  Loader2
+  ChevronRight,
+  ExternalLink
 } from 'lucide-vue-next'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { commercialService, type CommercialProject, type CommercialNote } from '@/services/commercial'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 
 const projects = ref<CommercialProject[]>([])
-const notesMap = ref<Record<number, CommercialNote[]>>({})
-const isLoading = ref(true)
-const isOnline = ref(true)
+const projectNotes = ref<Record<number, CommercialNote[]>>({})
+const activeFilter = ref('Tous')
+const selectedProject = ref<CommercialProject | null>(null)
+const newNoteText = ref('')
 const searchQuery = ref('')
-const activeStatusFilter = ref('Tous')
-const activeView = ref<'cards' | 'table'>('cards')
+const isLoading = ref(true)
 
-// Notification Toast
-const toastMessage = ref('')
-const toastType = ref<'success' | 'error' | 'info'>('success')
-const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
-  toastMessage.value = msg
-  toastType.value = type
-  setTimeout(() => { toastMessage.value = '' }, 4000)
-}
+// Add Project Modal State
+const showAddModal = ref(false)
+const isSubmittingAdd = ref(false)
+const isUploadingAddPhotos = ref(false)
+const addPhotoUploadProgress = ref('')
 
-// Status definitions
-const statuses = [
-  'Tous',
-  'Devis à faire',
-  'Rendez-vous pris',
-  'Devis envoyé',
-  'Négociation',
-  'Gagné / Signé',
-  'Perdu'
-]
-
-const projectTypes = [
-  'Enseigne / Signalétique',
-  'Site Web / Vitrine',
-  'Logiciel de Caisse',
-  'Marquage Véhicule',
-  'Print & Flyers',
-  'Pack Complet',
-  'Autre'
-]
-
-const priorities = ['Basse', 'Moyenne', 'Haute', 'Urgente']
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'Gagné / Signé':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-    case 'Devis envoyé':
-      return 'bg-blue-50 text-blue-700 border-blue-200'
-    case 'Négociation':
-      return 'bg-amber-50 text-amber-700 border-amber-200'
-    case 'Rendez-vous pris':
-      return 'bg-purple-50 text-purple-700 border-purple-200'
-    case 'Perdu':
-      return 'bg-rose-50 text-rose-700 border-rose-200'
-    default:
-      return 'bg-slate-100 text-slate-700 border-slate-200'
-  }
-}
-
-const getPriorityBadge = (priority: string) => {
-  switch (priority) {
-    case 'Urgente':
-      return 'bg-rose-100 text-rose-700 border-rose-200 font-bold'
-    case 'Haute':
-      return 'bg-orange-100 text-orange-700 border-orange-200'
-    case 'Moyenne':
-      return 'bg-blue-50 text-blue-700 border-blue-200'
-    default:
-      return 'bg-slate-50 text-slate-600 border-slate-200'
-  }
-}
-
-// Fetch data
-const loadData = async () => {
-  isLoading.value = true
-  const res = await commercialService.getProjects()
-  projects.value = res.data
-  isOnline.value = res.isOnline
-  notesMap.value = await commercialService.getNotes()
-  isLoading.value = false
-}
-
-onMounted(() => {
-  loadData()
-})
-
-// Metrics
-const stats = computed(() => {
-  const total = projects.value.length
-  const signed = projects.value.filter(p => p.status === 'Gagné / Signé').length
-  const inProgress = projects.value.filter(p => ['Devis à faire', 'Rendez-vous pris', 'Devis envoyé', 'Négociation'].includes(p.status)).length
-  
-  const totalPipelineRevenue = projects.value.reduce((acc, p) => {
-    const raw = (p.estimated_amount || '').replace(/[^0-9.]/g, '')
-    const val = parseFloat(raw) || 0
-    return acc + val
-  }, 0)
-
-  return { total, signed, inProgress, totalPipelineRevenue }
-})
-
-// Filtered projects
-const filteredProjects = computed(() => {
-  return projects.value.filter(p => {
-    const matchesFilter = activeStatusFilter.value === 'Tous' || p.status === activeStatusFilter.value
-    const q = searchQuery.value.toLowerCase().trim()
-    if (!q) return matchesFilter
-
-    const matchesSearch = 
-      p.name.toLowerCase().includes(q) ||
-      p.client.toLowerCase().includes(q) ||
-      (p.contact_name && p.contact_name.toLowerCase().includes(q)) ||
-      (p.address && p.address.toLowerCase().includes(q)) ||
-      (p.project_type && p.project_type.toLowerCase().includes(q)) ||
-      (p.commercial_name && p.commercial_name.toLowerCase().includes(q))
-
-    return matchesFilter && matchesSearch
-  })
-})
-
-// --- Modal Add / Edit Project ---
-const showProjectModal = ref(false)
-const isEditing = ref(false)
-const editingId = ref<number | null>(null)
-const isSubmitting = ref(false)
-const isUploadingPhotos = ref(false)
-const uploadProgressText = ref('')
-
-const projectForm = ref({
+const newProject = ref({
   name: '',
   client: '',
   contact_name: '',
@@ -169,134 +53,269 @@ const projectForm = ref({
   status: 'Devis à faire',
   priority: 'Moyenne',
   estimated_amount: '',
-  commercial_name: 'Commercial',
   deadline: '',
   description: '',
   photos: [] as string[]
 })
 
-const resetForm = () => {
-  projectForm.value = {
-    name: '',
-    client: '',
-    contact_name: '',
-    contact_phone: '',
-    contact_email: '',
-    address: '',
-    project_type: 'Enseigne / Signalétique',
-    status: 'Devis à faire',
-    priority: 'Moyenne',
-    estimated_amount: '',
-    commercial_name: 'Commercial',
-    deadline: '',
-    description: '',
-    photos: []
-  }
-  isEditing.value = false
-  editingId.value = null
+// Edit Project Modal State
+const isEditing = ref(false)
+const editingProjectData = ref<any>(null)
+const isUploadingEditPhotos = ref(false)
+const editPhotoUploadProgress = ref('')
+
+// Card Direct Upload State
+const cardUploadInput = ref<HTMLInputElement | null>(null)
+const targetProjectIdForUpload = ref<number | null>(null)
+
+// Lightbox State
+const activeLightboxPhotos = ref<string[]>([])
+const activePhotoIndex = ref(0)
+const isLightboxOpen = ref(false)
+
+// Fetch all projects & notes
+const fetchProjects = async () => {
+  isLoading.value = true
+  const res = await commercialService.getProjects()
+  projects.value = res.data
+  projectNotes.value = await commercialService.getNotes()
+  isLoading.value = false
 }
 
-const openNewProjectModal = () => {
-  resetForm()
-  showProjectModal.value = true
+onMounted(() => {
+  fetchProjects()
+})
+
+const parseTextWithLinks = (text: string) => {
+  if (!text) return ''
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g
+  return escaped.replace(urlRegex, (url) => {
+    const href = url.startsWith('www') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all font-bold">${url}</a>`
+  })
 }
 
-const openEditProjectModal = (project: CommercialProject) => {
-  isEditing.value = true
-  editingId.value = project.id
-  projectForm.value = {
-    name: project.name,
-    client: project.client,
-    contact_name: project.contact_name || '',
-    contact_phone: project.contact_phone || '',
-    contact_email: project.contact_email || '',
-    address: project.address || '',
-    project_type: project.project_type || 'Enseigne / Signalétique',
-    status: project.status || 'Devis à faire',
-    priority: project.priority || 'Moyenne',
-    estimated_amount: project.estimated_amount || '',
-    commercial_name: project.commercial_name || 'Commercial',
-    deadline: project.deadline || '',
-    description: project.description || '',
-    photos: [...(project.photos || [])]
-  }
-  showProjectModal.value = true
+// Status Colors exactly matching the project design
+const getStatusColor = (status: string) => {
+  if (status === 'Perdu') return 'bg-rose-50 text-rose-700 border-rose-200'
+  if (status === 'Gagné / Signé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'Devis envoyé') return 'bg-blue-50 text-blue-700 border-blue-200'
+  if (status === 'Négociation') return 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  return 'bg-amber-50 text-amber-700 border-amber-200'
 }
 
-// Upload photos directly
-const handlePhotoUpload = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  if (!input.files || input.files.length === 0) return
-
-  const files = Array.from(input.files)
-  isUploadingPhotos.value = true
-  uploadProgressText.value = `Téléchargement de ${files.length} photo(s)...`
-
-  try {
-    const urls: string[] = []
-    for (let i = 0; i < files.length; i++) {
-      uploadProgressText.value = `Upload photo ${i + 1}/${files.length}...`
-      const url = await uploadToCloudinary(files[i], 'microdidact/commercial')
-      urls.push(url)
-    }
-    projectForm.value.photos.push(...urls)
-    showToast(`✅ ${urls.length} photo(s) ajoutée(s) avec succès !`)
-  } catch (error: any) {
-    console.error('Erreur Cloudinary:', error)
-    showToast('❌ Erreur lors de l\'upload des photos. Vérifiez votre connexion.', 'error')
-  } finally {
-    isUploadingPhotos.value = false
-    uploadProgressText.value = ''
-    input.value = ''
+const getStatusProgress = (status: string) => {
+  switch (status) {
+    case 'Gagné / Signé': return 100
+    case 'Négociation': return 75
+    case 'Devis envoyé': return 50
+    case 'Devis à faire': return 25
+    case 'Perdu': return 0
+    default: return 20
   }
 }
 
-const removeFormPhoto = (index: number) => {
-  projectForm.value.photos.splice(index, 1)
-}
+// Filtering
+const filteredProjects = computed(() => {
+  let list = projects.value
 
-// Save Project
-const saveProject = async () => {
-  if (!projectForm.value.name.trim() || !projectForm.value.client.trim()) {
-    showToast('⚠️ Veuillez renseigner au moins le nom du projet et le client.', 'error')
-    return
-  }
-
-  isSubmitting.value = true
-  try {
-    if (isEditing.value && editingId.value) {
-      await commercialService.updateProject(editingId.value, { ...projectForm.value })
-      showToast('✅ Projet commercial mis à jour !')
+  if (activeFilter.value !== 'Tous') {
+    if (activeFilter.value === 'Gagnés / Signés') {
+      list = list.filter(p => p.status === 'Gagné / Signé')
+    } else if (activeFilter.value === 'En cours') {
+      list = list.filter(p => ['Devis à faire', 'Devis envoyé', 'Négociation', 'Rendez-vous pris'].includes(p.status))
+    } else if (activeFilter.value === 'Perdus') {
+      list = list.filter(p => p.status === 'Perdu')
     } else {
-      await commercialService.createProject({ ...projectForm.value })
-      showToast('🎉 Nouveau projet commercial créé avec succès !')
+      list = list.filter(p => p.status === activeFilter.value)
     }
-    await loadData()
-    showProjectModal.value = false
-    resetForm()
-  } catch (err: any) {
-    console.error('Erreur saveProject:', err)
-    showToast('❌ Une erreur est survenue lors de l\'enregistrement.', 'error')
-  } finally {
-    isSubmitting.value = false
+  }
+
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase().trim()
+    list = list.filter(p => 
+      p.name.toLowerCase().includes(q) ||
+      p.client.toLowerCase().includes(q) ||
+      (p.contact_name && p.contact_name.toLowerCase().includes(q)) ||
+      (p.contact_phone && p.contact_phone.toLowerCase().includes(q)) ||
+      (p.address && p.address.toLowerCase().includes(q)) ||
+      (p.project_type && p.project_type.toLowerCase().includes(q))
+    )
+  }
+
+  return list
+})
+
+// Quick status update on card
+const updateStatus = async (projectId: number, newStatus: string) => {
+  const p = projects.value.find(item => item.id === projectId)
+  if (p) {
+    p.status = newStatus
+    await commercialService.updateProject(projectId, { status: newStatus })
+  }
+}
+
+// Add Note
+const addNote = async () => {
+  if (!selectedProject.value || !newNoteText.value.trim()) return
+  const projectId = selectedProject.value.id
+  const note = await commercialService.addNote(projectId, newNoteText.value.trim())
+  if (!projectNotes.value[projectId]) projectNotes.value[projectId] = []
+  projectNotes.value[projectId].unshift(note)
+  newNoteText.value = ''
+}
+
+// Delete Note
+const deleteNote = async (noteId: number, projectId: number) => {
+  if (confirm('Supprimer cette note ?')) {
+    await commercialService.deleteNote(noteId, projectId)
+    if (projectNotes.value[projectId]) {
+      projectNotes.value[projectId] = projectNotes.value[projectId].filter(n => n.id !== noteId)
+    }
   }
 }
 
 // Delete Project
-const confirmDeleteProject = async (id: number) => {
+const deleteProject = async (id: number) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce projet commercial ?')) {
     await commercialService.deleteProject(id)
-    await loadData()
-    showToast('🗑️ Projet commercial supprimé.')
+    projects.value = projects.value.filter(p => p.id !== id)
+    selectedProject.value = null
   }
 }
 
+// Photo Upload in New Project Modal
+const handleAddPhotoUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
 
+  const files = Array.from(input.files)
+  isUploadingAddPhotos.value = true
+  addPhotoUploadProgress.value = `Envoi de ${files.length} photo(s)...`
 
-// --- Direct Card Photo Upload ---
-const cardUploadInput = ref<HTMLInputElement | null>(null)
-const targetProjectIdForUpload = ref<number | null>(null)
+  try {
+    for (let i = 0; i < files.length; i++) {
+      addPhotoUploadProgress.value = `Photo ${i + 1}/${files.length}...`
+      const url = await uploadToCloudinary(files[i], 'microdidact/commercial')
+      newProject.value.photos.push(url)
+    }
+  } catch (e) {
+    alert("Erreur lors de l'upload des photos.")
+  } finally {
+    isUploadingAddPhotos.value = false
+    addPhotoUploadProgress.value = ''
+    input.value = ''
+  }
+}
 
+const removeAddPhoto = (idx: number) => {
+  newProject.value.photos.splice(idx, 1)
+}
+
+// Add Project Submit
+const addProject = async () => {
+  if (!newProject.value.name.trim() || !newProject.value.client.trim()) {
+    alert('Veuillez préciser le nom du projet et le client.')
+    return
+  }
+
+  isSubmittingAdd.value = true
+  try {
+    const created = await commercialService.createProject({
+      ...newProject.value,
+      commercial_name: 'Commercial'
+    })
+    projects.value.unshift(created)
+    newProject.value = {
+      name: '',
+      client: '',
+      contact_name: '',
+      contact_phone: '',
+      contact_email: '',
+      address: '',
+      project_type: 'Enseigne / Signalétique',
+      status: 'Devis à faire',
+      priority: 'Moyenne',
+      estimated_amount: '',
+      deadline: '',
+      description: '',
+      photos: []
+    }
+    showAddModal.value = false
+  } catch (e: any) {
+    alert("Erreur lors de la création : " + e.message)
+  } finally {
+    isSubmittingAdd.value = false
+  }
+}
+
+// Edit Project
+const startEditing = () => {
+  if (!selectedProject.value) return
+  editingProjectData.value = {
+    ...selectedProject.value,
+    photos: [...(selectedProject.value.photos || [])]
+  }
+  isEditing.value = true
+}
+
+const cancelEditing = () => {
+  isEditing.value = false
+  editingProjectData.value = null
+}
+
+const handleEditPhotoUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0 || !editingProjectData.value) return
+
+  const files = Array.from(input.files)
+  isUploadingEditPhotos.value = true
+  editPhotoUploadProgress.value = `Envoi de ${files.length} photo(s)...`
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      editPhotoUploadProgress.value = `Photo ${i + 1}/${files.length}...`
+      const url = await uploadToCloudinary(files[i], 'microdidact/commercial')
+      editingProjectData.value.photos.push(url)
+    }
+  } catch (e) {
+    alert("Erreur lors de l'upload des photos.")
+  } finally {
+    isUploadingEditPhotos.value = false
+    editPhotoUploadProgress.value = ''
+    input.value = ''
+  }
+}
+
+const removeEditPhoto = (idx: number) => {
+  if (editingProjectData.value?.photos) {
+    editingProjectData.value.photos.splice(idx, 1)
+  }
+}
+
+const saveProjectUpdate = async () => {
+  if (!editingProjectData.value) return
+
+  const updates = { ...editingProjectData.value }
+  await commercialService.updateProject(editingProjectData.value.id, updates)
+
+  const idx = projects.value.findIndex(p => p.id === editingProjectData.value.id)
+  if (idx !== -1) {
+    projects.value[idx] = { ...updates }
+  }
+  selectedProject.value = { ...updates }
+  isEditing.value = false
+  editingProjectData.value = null
+}
+
+// Card Direct Photo Upload
 const triggerCardPhotoUpload = (projectId: number) => {
   targetProjectIdForUpload.value = projectId
   cardUploadInput.value?.click()
@@ -312,14 +331,13 @@ const handleCardPhotoUpload = async (event: Event) => {
   const files = Array.from(input.files)
   isLoading.value = true
   try {
-    for (const file of files) {
-      const url = await uploadToCloudinary(file, 'microdidact/commercial')
+    for (const f of files) {
+      const url = await uploadToCloudinary(f, 'microdidact/commercial')
       p.photos.push(url)
     }
     await commercialService.updateProject(p.id, { photos: p.photos })
-    showToast(`📸 ${files.length} photo(s) ajoutée(s) au projet !`)
-  } catch (err) {
-    showToast('❌ Erreur lors de l\'ajout des photos.', 'error')
+  } catch (e) {
+    alert("Erreur lors de l'ajout des photos.")
   } finally {
     isLoading.value = false
     targetProjectIdForUpload.value = null
@@ -327,91 +345,61 @@ const handleCardPhotoUpload = async (event: Event) => {
   }
 }
 
-// --- Lightbox Modal (Full-size Photo Viewer) ---
-const activeLightboxPhotos = ref<string[]>([])
-const activePhotoIndex = ref(0)
-const isLightboxOpen = ref(false)
-const lightboxProjectId = ref<number | null>(null)
-
-const openLightbox = (photos: string[], index = 0, projectId?: number) => {
+// Lightbox
+const openLightbox = (photos: string[], index = 0) => {
   if (!photos || photos.length === 0) return
   activeLightboxPhotos.value = photos
   activePhotoIndex.value = index
-  lightboxProjectId.value = projectId || null
   isLightboxOpen.value = true
 }
 
-const nextLightboxPhoto = () => {
-  if (activePhotoIndex.value < activeLightboxPhotos.value.length - 1) {
-    activePhotoIndex.value++
-  } else {
-    activePhotoIndex.value = 0
+// Export CSV (identique à Suivi Vitrine)
+const exportCSV = () => {
+  if (filteredProjects.value.length === 0) {
+    alert("Aucun projet à exporter.")
+    return
   }
-}
 
-const prevLightboxPhoto = () => {
-  if (activePhotoIndex.value > 0) {
-    activePhotoIndex.value--
-  } else {
-    activePhotoIndex.value = activeLightboxPhotos.value.length - 1
-  }
-}
+  const headers = [
+    "Nom du Projet", "Client / Entreprise", "Contact", "Téléphone", 
+    "Email", "Adresse", "Type de Projet", "Statut", "Montant Estimé", 
+    "Date Limite", "Priorité", "Photos (URLs)"
+  ]
 
-const deleteLightboxPhoto = async () => {
-  if (!lightboxProjectId.value) return
-  if (!confirm('Voulez-vous supprimer cette photo du projet ?')) return
+  const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`
 
-  const p = projects.value.find(item => item.id === lightboxProjectId.value)
-  if (!p) return
+  const rows = filteredProjects.value.map(p => {
+    return [
+      escapeCSV(p.name),
+      escapeCSV(p.client),
+      escapeCSV(p.contact_name),
+      escapeCSV(p.contact_phone),
+      escapeCSV(p.contact_email),
+      escapeCSV(p.address),
+      escapeCSV(p.project_type),
+      escapeCSV(p.status),
+      escapeCSV(p.estimated_amount ? p.estimated_amount + '€' : ''),
+      escapeCSV(p.deadline),
+      escapeCSV(p.priority),
+      escapeCSV((p.photos || []).join(' | '))
+    ].join(';')
+  })
 
-  p.photos.splice(activePhotoIndex.value, 1)
-  await commercialService.updateProject(p.id, { photos: p.photos })
-  activeLightboxPhotos.value = [...p.photos]
+  const csvContent = "\uFEFF" + headers.join(';') + "\n" + rows.join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
 
-  if (activeLightboxPhotos.value.length === 0) {
-    isLightboxOpen.value = false
-  } else if (activePhotoIndex.value >= activeLightboxPhotos.value.length) {
-    activePhotoIndex.value = activeLightboxPhotos.value.length - 1
-  }
-  showToast('Photo supprimée du projet.')
-}
-
-// --- Notes / Follow-ups Modal ---
-const activeProjectForNotes = ref<CommercialProject | null>(null)
-const showNotesModal = ref(false)
-const newNoteInput = ref('')
-const isAddingNote = ref(false)
-
-const openNotesModal = (project: CommercialProject) => {
-  activeProjectForNotes.value = project
-  showNotesModal.value = true
-}
-
-const handleAddNote = async () => {
-  if (!activeProjectForNotes.value || !newNoteInput.value.trim()) return
-  isAddingNote.value = true
-  try {
-    await commercialService.addNote(activeProjectForNotes.value.id, newNoteInput.value.trim())
-    notesMap.value = await commercialService.getNotes()
-    newNoteInput.value = ''
-    showToast('Note ajoutée au suivi !')
-  } catch (e) {
-    showToast('Erreur ajout note', 'error')
-  } finally {
-    isAddingNote.value = false
-  }
-}
-
-const handleDeleteNote = async (noteId: number) => {
-  if (!activeProjectForNotes.value) return
-  await commercialService.deleteNote(noteId, activeProjectForNotes.value.id)
-  notesMap.value = await commercialService.getNotes()
-  showToast('Note supprimée.')
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `suivi_commercial_${new Date().toISOString().split('T')[0]}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 </script>
 
 <template>
-  <div class="flex-1 space-y-6 p-4 md:p-8 bg-slate-50/50 min-h-screen relative">
+  <div class="flex-1 space-y-6 p-6 bg-slate-50/30 min-h-screen relative">
     
     <!-- Hidden input for card direct photo upload -->
     <input 
@@ -423,819 +411,730 @@ const handleDeleteNote = async (noteId: number) => {
       @change="handleCardPhotoUpload" 
     />
 
-    <!-- Toast Notification -->
-    <div 
-      v-if="toastMessage" 
-      class="fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300 font-bold text-sm"
-      :class="[
-        toastType === 'success' ? 'bg-emerald-950 text-white border-emerald-800' : 
-        toastType === 'error' ? 'bg-rose-950 text-white border-rose-800' : 
-        'bg-slate-900 text-white border-slate-700'
-      ]"
-    >
-      <span>{{ toastMessage }}</span>
-    </div>
-
-    <!-- Header Section -->
-    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-      <div class="space-y-1">
-        <div class="flex items-center gap-2.5">
-          <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-100">
-            <TrendingUp class="h-5 w-5" />
-          </div>
-          <div>
-            <h1 class="text-2xl md:text-3xl font-black tracking-tight text-slate-900 uppercase">
-              Section Commerciale & Projets
-            </h1>
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Gestion des nouveaux projets, prospections et prises de photos directes
-            </p>
-          </div>
-        </div>
+    <!-- Header Section (Identique à Suivi Vitrine) -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Suivi Commercial</h2>
+        <p class="text-muted-foreground text-xs">Gérez et mettez à jour vos projets commerciaux et opportunités en temps réel.</p>
       </div>
-
-      <div class="flex items-center gap-3 w-full md:w-auto">
-        <Button 
-          variant="outline" 
-          @click="loadData" 
-          class="rounded-xl border-slate-200 hover:bg-white text-slate-600 font-bold text-xs gap-2 py-5 shadow-xs"
-        >
-          <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
-          <span>Actualiser</span>
+      <div class="flex items-center gap-2">
+        <Button size="sm" variant="outline" @click="exportCSV" class="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+          <Download class="mr-1.5 h-3.5 w-3.5" /> Exporter (CSV)
         </Button>
-
-        <Button 
-          @click="openNewProjectModal" 
-          class="flex-1 md:flex-none rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs gap-2 py-5 shadow-lg shadow-indigo-100 active:scale-98 transition-all uppercase tracking-wider"
-        >
-          <Plus class="h-4 w-4" />
-          <span>Nouveau Projet Commercial</span>
+        <Button size="sm" @click="showAddModal = true" class="bg-indigo-600 hover:bg-indigo-500 shadow-sm">
+          <Plus class="mr-1.5 h-3.5 w-3.5" /> Nouveau
         </Button>
       </div>
     </div>
 
-    <!-- Stats Bar -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card class="bg-white border-slate-100 rounded-2xl shadow-xs p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Projets</p>
-            <h3 class="text-2xl font-black text-slate-900 mt-1">{{ stats.total }}</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Building2 class="h-5 w-5" />
-          </div>
-        </div>
-      </Card>
-
-      <Card class="bg-white border-slate-100 rounded-2xl shadow-xs p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">En Négociation / Devis</p>
-            <h3 class="text-2xl font-black text-amber-600 mt-1">{{ stats.inProgress }}</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Clock class="h-5 w-5" />
-          </div>
-        </div>
-      </Card>
-
-      <Card class="bg-white border-slate-100 rounded-2xl shadow-xs p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Gagnés / Signés</p>
-            <h3 class="text-2xl font-black text-emerald-600 mt-1">{{ stats.signed }}</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CheckCircle2 class="h-5 w-5" />
-          </div>
-        </div>
-      </Card>
-
-      <Card class="bg-white border-slate-100 rounded-2xl shadow-xs p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Pipeline Estimé</p>
-            <h3 class="text-2xl font-black text-slate-900 mt-1">{{ stats.totalPipelineRevenue.toLocaleString('fr-FR') }} €</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <DollarSign class="h-5 w-5" />
-          </div>
-        </div>
-      </Card>
-    </div>
-
-    <!-- Filters & Search Toolbar -->
-    <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white p-3 md:p-4 rounded-2xl border border-slate-100 shadow-xs">
-      
-      <!-- Search Input -->
-      <div class="relative flex-1">
-        <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input 
-          v-model="searchQuery" 
-          placeholder="Rechercher par client, projet, ville, téléphone..." 
-          class="pl-10 pr-4 py-2 bg-slate-50 border-slate-100 rounded-xl font-medium text-xs focus-visible:ring-indigo-100 focus-visible:ring-2"
-        />
+    <!-- Search and Filters (Identique à Suivi Vitrine) -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex overflow-x-auto no-scrollbar gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit shrink-0">
         <button 
-          v-if="searchQuery" 
-          @click="searchQuery = ''" 
-          class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-        >
-          <X class="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <!-- Status Pills -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
-        <button 
-          v-for="st in statuses" 
-          :key="st" 
-          @click="activeStatusFilter = st"
-          class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap"
+          v-for="filter in ['Tous', 'En cours', 'Devis à faire', 'Devis envoyé', 'Négociation', 'Gagnés / Signés', 'Perdus']" 
+          :key="filter"
+          @click="activeFilter = filter"
+          class="px-4 py-2 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap"
           :class="[
-            activeStatusFilter === st 
-              ? 'bg-slate-900 text-white shadow-xs' 
-              : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            activeFilter === filter 
+              ? (filter === 'Perdus' ? 'bg-rose-100 text-rose-700 shadow-sm' : 'bg-white text-slate-900 shadow-sm') 
+              : 'text-slate-500 hover:text-slate-700'
           ]"
         >
-          {{ st }}
+          {{ filter }}
         </button>
       </div>
 
-      <!-- View Switcher -->
-      <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-end lg:self-auto">
-        <button 
-          @click="activeView = 'cards'" 
-          class="p-1.5 rounded-lg text-slate-600 transition-all"
-          :class="{ 'bg-white shadow-xs text-indigo-600': activeView === 'cards' }"
-          title="Vue Cartes"
-        >
-          <LayoutGrid class="h-4 w-4" />
-        </button>
-        <button 
-          @click="activeView = 'table'" 
-          class="p-1.5 rounded-lg text-slate-600 transition-all"
-          :class="{ 'bg-white shadow-xs text-indigo-600': activeView === 'table' }"
-          title="Vue Tableau"
-        >
-          <List class="h-4 w-4" />
-        </button>
+      <div class="relative w-full md:max-w-xs flex-1">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <input 
+          v-model="searchQuery"
+          type="text"
+          placeholder="Rechercher un projet, client, ville..."
+          class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400 shadow-xs"
+        />
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="py-16 flex flex-col items-center justify-center">
-      <Loader2 class="h-8 w-8 text-indigo-600 animate-spin" />
-      <p class="mt-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Chargement des projets commerciaux...</p>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center bg-white rounded-3xl border border-slate-100 p-8">
-      <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
-        <Building2 class="h-7 w-7" />
-      </div>
-      <h3 class="text-base font-black text-slate-900 uppercase">Aucun projet commercial trouvé</h3>
-      <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-        {{ searchQuery ? 'Aucun résultat ne correspond à votre recherche.' : 'Commencez par ajouter le premier projet avec ses photos en cliquant ci-dessous.' }}
-      </p>
-      <Button 
-        @click="openNewProjectModal" 
-        class="mt-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs gap-2 py-5 shadow-lg shadow-indigo-100 uppercase tracking-wider"
-      >
-        <Plus class="h-4 w-4" />
-        <span>Nouveau Projet Commercial</span>
-      </Button>
-    </div>
-
-    <!-- CARDS VIEW -->
-    <div v-else-if="activeView === 'cards'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-      <div 
+    <!-- Compact Project Grid (Identique à Suivi Vitrine) -->
+    <div class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <Card 
         v-for="project in filteredProjects" 
         :key="project.id" 
-        class="bg-white border border-slate-100 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group relative overflow-hidden"
+        class="flex flex-col bg-white border-slate-100/80 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl overflow-hidden cursor-pointer"
+        @click="selectedProject = project"
       >
-        <!-- Card Top Bar: Badges & Menu -->
-        <div>
-          <div class="flex items-center justify-between gap-2 mb-3">
-            <span class="px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border" :class="getStatusBadge(project.status)">
-              {{ project.status }}
-            </span>
-            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold border" :class="getPriorityBadge(project.priority)">
-              {{ project.priority }}
+        <CardHeader class="p-4 pb-2 space-y-1">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1">
+              <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
+                {{ project.status }}
+              </Badge>
+              <Badge variant="outline" class="text-[10px] px-2 py-0.5 font-bold border bg-slate-50 text-slate-700">
+                {{ project.estimated_amount ? project.estimated_amount + ' €' : 'À chiffrer' }}
+              </Badge>
+              <Badge variant="outline" class="text-[10px] px-1.5 py-0.5 font-bold border bg-indigo-50 text-indigo-700" title="Photos attachées">
+                📷 {{ (project.photos || []).length }}
+              </Badge>
+            </div>
+            <span class="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+              <Calendar class="h-3 w-3 text-slate-400" /> {{ project.deadline || 'Sans date' }}
             </span>
           </div>
 
-          <!-- Project & Client Title -->
-          <h3 class="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
-            {{ project.name }}
-          </h3>
-          <p class="text-xs font-bold text-slate-500 flex items-center gap-1.5 mt-0.5">
-            <Building2 class="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <span class="truncate">{{ project.client }}</span>
-            <span class="text-slate-300">•</span>
-            <span class="text-[10px] font-semibold text-indigo-600">{{ project.project_type }}</span>
-          </p>
+          <CardTitle class="text-base text-slate-900 font-bold tracking-tight truncate pt-1">{{ project.name }}</CardTitle>
+          <CardDescription class="text-slate-400 text-xs truncate">
+            Client: <span class="font-bold text-slate-700">{{ project.client }}</span>
+            <span v-if="project.contact_phone" class="ml-1 text-indigo-600 font-semibold">• {{ project.contact_phone }}</span>
+          </CardDescription>
+        </CardHeader>
 
-          <!-- Contact details & Address -->
-          <div class="mt-3.5 space-y-1.5 text-xs text-slate-600 bg-slate-50/70 p-3 rounded-2xl border border-slate-100/80">
-            <div v-if="project.contact_name" class="font-bold text-slate-800 text-[11px] truncate">
-              👤 {{ project.contact_name }}
-            </div>
-            <div v-if="project.contact_phone" class="flex items-center gap-2">
-              <Phone class="h-3.5 w-3.5 text-slate-400" />
-              <a :href="'tel:' + project.contact_phone" class="text-indigo-600 font-bold hover:underline">
-                {{ project.contact_phone }}
-              </a>
-            </div>
-            <div v-if="project.contact_email" class="flex items-center gap-2">
-              <Mail class="h-3.5 w-3.5 text-slate-400" />
-              <a :href="'mailto:' + project.contact_email" class="text-slate-600 truncate hover:text-slate-900">
-                {{ project.contact_email }}
-              </a>
-            </div>
-            <div v-if="project.address" class="flex items-center gap-2">
-              <MapPin class="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <a 
-                :href="'https://maps.google.com/?q=' + encodeURIComponent(project.address)" 
-                target="_blank" 
-                class="truncate text-slate-600 hover:text-indigo-600"
-              >
-                {{ project.address }}
-              </a>
-            </div>
-          </div>
-
-          <!-- Description if any -->
-          <p v-if="project.description" class="text-xs text-slate-600 mt-3 line-clamp-2 italic bg-amber-50/40 p-2 rounded-xl border border-amber-100/50">
-            "{{ project.description }}"
-          </p>
-
-          <!-- PHOTOS GALLERY SECTION -->
-          <div class="mt-4 pt-3 border-t border-slate-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Camera class="h-3.5 w-3.5 text-slate-400" />
-                <span>Photos du projet ({{ (project.photos || []).length }})</span>
-              </span>
-              
-              <!-- Quick direct photo add button on card -->
+        <CardContent class="p-4 pt-2 flex-1 flex flex-col justify-between gap-3" @click.stop>
+          
+          <!-- Direct Photos Thumbnails Preview -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[10px]">
+              <span class="text-slate-400 font-medium">Photos du projet</span>
               <button 
-                @click="triggerCardPhotoUpload(project.id)" 
-                class="text-[10px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg transition-colors"
-                title="Ajouter des photos directement"
+                @click="triggerCardPhotoUpload(project.id)"
+                class="text-indigo-600 font-bold hover:underline flex items-center gap-1"
               >
-                <Plus class="h-3 w-3" />
-                <span>Ajouter photo</span>
+                <Plus class="h-3 w-3" /> Photo
               </button>
             </div>
 
-            <!-- Photos Thumbnails Grid -->
-            <div v-if="project.photos && project.photos.length > 0" class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <div v-if="project.photos && project.photos.length > 0" class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
               <div 
                 v-for="(photo, idx) in project.photos" 
-                :key="photo" 
-                @click="openLightbox(project.photos, idx, project.id)"
-                class="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-200 cursor-pointer hover:opacity-90 group/thumb shadow-2xs transition-all"
+                :key="photo"
+                @click="openLightbox(project.photos, idx)"
+                class="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
               >
-                <img :src="photo" class="w-full h-full object-cover" alt="Photo projet" loading="lazy" />
-                <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-bold">
-                  🔍
+                <img :src="photo" class="w-full h-full object-cover" />
+              </div>
+            </div>
+            <div 
+              v-else 
+              @click="triggerCardPhotoUpload(project.id)"
+              class="border border-dashed border-slate-200 rounded-lg p-2 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              <span class="text-[10px] text-slate-400 font-medium flex items-center justify-center gap-1">
+                <Camera class="h-3 w-3 text-slate-400" /> Ajouter des photos
+              </span>
+            </div>
+          </div>
+
+          <!-- Progression Pipeline -->
+          <div class="space-y-1">
+            <div class="flex justify-between text-[10px]">
+              <span class="text-slate-400 font-medium">Progression</span>
+              <span class="font-bold text-indigo-600">{{ getStatusProgress(project.status) }}%</span>
+            </div>
+            <Progress :model-value="getStatusProgress(project.status)" class="h-1 bg-slate-100" />
+          </div>
+
+          <!-- Notes Preview -->
+          <div class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 font-medium truncate flex items-center gap-1">
+            <FileText class="h-3 w-3 text-slate-400 shrink-0" />
+            <span v-if="projectNotes[project.id]?.length">
+              {{ projectNotes[project.id][0].text }}
+            </span>
+            <span v-else class="text-slate-300 italic">Aucune note de suivi</span>
+          </div>
+
+          <!-- Quick Status Change Buttons -->
+          <div class="pt-2 border-t border-slate-50 flex flex-col gap-1.5">
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Changer le statut</span>
+            <div class="flex gap-1">
+              <button 
+                @click="updateStatus(project.id, 'Devis à faire')"
+                class="flex-1 py-1 text-[9px] font-bold rounded border transition-all"
+                :class="[project.status === 'Devis à faire' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
+              >
+                Devis
+              </button>
+              <button 
+                @click="updateStatus(project.id, 'Négociation')"
+                class="flex-1 py-1 text-[9px] font-bold rounded border transition-all"
+                :class="[project.status === 'Négociation' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
+              >
+                Négo
+              </button>
+              <button 
+                @click="updateStatus(project.id, 'Gagné / Signé')"
+                class="flex-1 py-1 text-[9px] font-bold rounded border transition-all"
+                :class="[project.status === 'Gagné / Signé' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
+              >
+                Signé
+              </button>
+              <button 
+                @click="updateStatus(project.id, 'Perdu')"
+                class="flex-1 py-1 text-[9px] font-bold rounded border transition-all"
+                :class="[project.status === 'Perdu' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50']"
+              >
+                Perdu
+              </button>
+            </div>
+          </div>
+
+        </CardContent>
+      </Card>
+    </div>
+
+    <!-- Empty State -->
+    <div v-if="!isLoading && filteredProjects.length === 0" class="text-center py-16 bg-white rounded-2xl border border-slate-100 p-8 shadow-xs">
+      <Building2 class="h-10 w-10 text-slate-300 mx-auto mb-2" />
+      <h3 class="text-base font-bold text-slate-800">Aucun projet commercial</h3>
+      <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+        {{ searchQuery ? 'Aucun projet ne correspond à votre recherche.' : 'Cliquez sur "+ Nouveau" pour enregistrer un nouveau projet et ses photos.' }}
+      </p>
+      <Button size="sm" @click="showAddModal = true" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs">
+        <Plus class="h-3.5 w-3.5 mr-1" /> Créer un projet
+      </Button>
+    </div>
+
+    <!-- MODAL: PROJECT DETAILS & MULTIPLE NOTES & PHOTOS (Identique à Suivi Vitrine) -->
+    <div 
+      v-if="selectedProject" 
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" 
+      @click="selectedProject = null; isEditing = false"
+    >
+      <div 
+        class="bg-white rounded-2xl max-w-4xl w-full max-h-[88vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" 
+        @click.stop
+      >
+        
+        <!-- Modal Header -->
+        <div class="p-6 border-b border-slate-100 flex items-start justify-between">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <Badge variant="outline" :class="[getStatusColor(selectedProject?.status || ''), 'text-xs px-2 py-0.5 font-bold border']">
+                {{ selectedProject?.status }}
+              </Badge>
+              <Badge variant="outline" class="text-xs px-2 py-0.5 font-bold border bg-slate-50 text-slate-700">
+                {{ selectedProject?.estimated_amount ? selectedProject.estimated_amount + ' €' : 'Montant à chiffrer' }}
+              </Badge>
+              <Badge variant="outline" class="text-xs px-2 py-0.5 font-bold border bg-indigo-50 text-indigo-700">
+                {{ selectedProject?.project_type }}
+              </Badge>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 tracking-tight">{{ selectedProject?.name }}</h3>
+            <p class="text-slate-500 text-sm font-medium">
+              Client: <span class="font-bold text-slate-700">{{ selectedProject?.client }}</span>
+              <span v-if="selectedProject?.contact_phone" class="ml-2 text-indigo-600">• {{ selectedProject?.contact_phone }}</span>
+            </p>
+          </div>
+          <div class="flex items-center gap-1">
+            <button 
+              v-if="!isEditing" 
+              @click="startEditing" 
+              class="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition-colors" 
+              title="Modifier le projet"
+            >
+              <Pencil class="h-4 w-4" />
+            </button>
+            <button 
+              @click="deleteProject(selectedProject?.id || 0)" 
+              class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors" 
+              title="Supprimer le projet"
+            >
+              <Trash2 class="h-5 w-5" />
+            </button>
+            <button 
+              @click="selectedProject = null; isEditing = false" 
+              class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            >
+              <X class="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 overflow-y-auto flex-1 space-y-6">
+          
+          <!-- EDIT FORM -->
+          <div v-if="isEditing" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Nom du Projet</label>
+                <input v-model="editingProjectData.name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Client / Entreprise</label>
+                <input v-model="editingProjectData.client" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Interlocuteur</label>
+                <input v-model="editingProjectData.contact_name" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Téléphone</label>
+                <input v-model="editingProjectData.contact_phone" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Email</label>
+                <input v-model="editingProjectData.contact_email" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Adresse / Localisation</label>
+              <input v-model="editingProjectData.address" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Type de Projet</label>
+                <select v-model="editingProjectData.project_type" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium">
+                  <option value="Enseigne / Signalétique">Enseigne / Signalétique</option>
+                  <option value="Site Web / Vitrine">Site Web / Vitrine</option>
+                  <option value="Logiciel de Caisse">Logiciel de Caisse</option>
+                  <option value="Marquage Véhicule">Marquage Véhicule</option>
+                  <option value="Print & Flyers">Print & Flyers</option>
+                  <option value="Autre">Autre</option>
+                </select>
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Statut</label>
+                <select v-model="editingProjectData.status" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium">
+                  <option value="Devis à faire">Devis à faire</option>
+                  <option value="Rendez-vous pris">Rendez-vous pris</option>
+                  <option value="Devis envoyé">Devis envoyé</option>
+                  <option value="Négociation">Négociation</option>
+                  <option value="Gagné / Signé">Gagné / Signé</option>
+                  <option value="Perdu">Perdu</option>
+                </select>
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Montant Estimé (€)</label>
+                <input v-model="editingProjectData.estimated_amount" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium" />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Description / Besoins client</label>
+              <textarea v-model="editingProjectData.description" rows="3" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium"></textarea>
+            </div>
+
+            <!-- Photos Section in Edit Mode -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Camera class="h-4 w-4 text-indigo-600" /> Photos attachées au projet
+                </label>
+                <div class="flex items-center gap-2">
+                  <label class="cursor-pointer text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+                    <Plus class="h-3.5 w-3.5" /> Ajouter des photos
+                    <input type="file" accept="image/*" multiple class="hidden" @change="handleEditPhotoUpload" />
+                  </label>
+                  <span v-if="isUploadingEditPhotos" class="text-xs text-indigo-600 animate-pulse font-medium">
+                    {{ editPhotoUploadProgress }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-if="editingProjectData.photos && editingProjectData.photos.length > 0" class="flex flex-wrap gap-2 pt-1">
+                <div 
+                  v-for="(photo, idx) in editingProjectData.photos" 
+                  :key="photo"
+                  class="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200"
+                >
+                  <img :src="photo" class="w-full h-full object-cover" />
+                  <button 
+                    type="button" 
+                    @click="removeEditPhoto(idx)" 
+                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]"
+                  >
+                    <X class="h-3 w-3" />
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div 
-              v-else 
-              @click="triggerCardPhotoUpload(project.id)"
-              class="border-2 border-dashed border-slate-200 rounded-xl p-2.5 text-center cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
-            >
-              <p class="text-[10px] font-bold text-slate-400 flex items-center justify-center gap-1.5">
-                <Camera class="h-3.5 w-3.5 text-slate-400" />
-                <span>Cliquez pour ajouter les photos du chantier / magasin</span>
-              </p>
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <Button variant="outline" size="sm" @click="cancelEditing">Annuler</Button>
+              <Button size="sm" @click="saveProjectUpdate" class="bg-indigo-600 hover:bg-indigo-500 text-white">Enregistrer</Button>
             </div>
           </div>
-        </div>
 
-        <!-- Card Footer -->
-        <div class="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-          <div>
-            <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Montant Estimé</span>
-            <span class="text-base font-black text-slate-900">
-              {{ project.estimated_amount ? project.estimated_amount + ' €' : 'À chiffrer' }}
-            </span>
-          </div>
-
-          <div class="flex items-center gap-1.5">
-            <!-- Notes button -->
-            <button 
-              @click="openNotesModal(project)"
-              class="relative p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-              title="Notes et suivi"
-            >
-              <MessageSquare class="h-4 w-4" />
-              <span 
-                v-if="(notesMap[project.id] || []).length > 0" 
-                class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-black flex items-center justify-center"
-              >
-                {{ (notesMap[project.id] || []).length }}
-              </span>
-            </button>
-
-            <!-- Edit button -->
-            <button 
-              @click="openEditProjectModal(project)"
-              class="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-              title="Modifier"
-            >
-              <Pencil class="h-4 w-4" />
-            </button>
-
-            <!-- Delete button -->
-            <button 
-              @click="confirmDeleteProject(project.id)"
-              class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-              title="Supprimer"
-            >
-              <Trash2 class="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TABLE VIEW -->
-    <div v-else class="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-            <tr>
-              <th class="p-4">Projet & Client</th>
-              <th class="p-4">Photos</th>
-              <th class="p-4">Contact</th>
-              <th class="p-4">Type</th>
-              <th class="p-4">Montant</th>
-              <th class="p-4">Statut</th>
-              <th class="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="project in filteredProjects" :key="project.id" class="hover:bg-slate-50/60 transition-colors">
-              <td class="p-4">
-                <div class="font-black text-slate-900">{{ project.name }}</div>
-                <div class="text-[11px] font-bold text-slate-500">{{ project.client }}</div>
-              </td>
-              <td class="p-4">
-                <div v-if="project.photos && project.photos.length > 0" class="flex items-center gap-1.5">
-                  <div 
-                    v-for="(photo, idx) in project.photos.slice(0, 3)" 
-                    :key="photo"
-                    @click="openLightbox(project.photos, idx, project.id)"
-                    class="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
-                  >
-                    <img :src="photo" class="w-full h-full object-cover" />
+          <!-- VIEW MODE (IDENTIQUE A SUIVI VITRINE) -->
+          <div v-else class="space-y-6">
+            
+            <!-- Information Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Coordonnées</h4>
+                <div class="text-sm space-y-1">
+                  <div v-if="selectedProject.contact_name" class="font-bold text-slate-800">👤 {{ selectedProject.contact_name }}</div>
+                  <div v-if="selectedProject.contact_phone" class="flex items-center gap-2">
+                    <Phone class="h-3.5 w-3.5 text-slate-400" />
+                    <a :href="'tel:' + selectedProject.contact_phone" class="text-indigo-600 font-bold hover:underline">
+                      {{ selectedProject.contact_phone }}
+                    </a>
                   </div>
-                  <span v-if="project.photos.length > 3" class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">
-                    +{{ project.photos.length - 3 }}
-                  </span>
+                  <div v-if="selectedProject.contact_email" class="flex items-center gap-2">
+                    <Mail class="h-3.5 w-3.5 text-slate-400" />
+                    <a :href="'mailto:' + selectedProject.contact_email" class="text-slate-600 hover:underline">
+                      {{ selectedProject.contact_email }}
+                    </a>
+                  </div>
+                  <div v-if="selectedProject.address" class="flex items-center gap-2">
+                    <MapPin class="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <a :href="'https://maps.google.com/?q=' + encodeURIComponent(selectedProject.address)" target="_blank" class="text-slate-600 hover:text-indigo-600">
+                      {{ selectedProject.address }}
+                    </a>
+                  </div>
                 </div>
-                <button 
-                  v-else 
-                  @click="triggerCardPhotoUpload(project.id)" 
-                  class="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+              </div>
+
+              <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Détails de l'Opportunité</h4>
+                <div class="text-sm space-y-1">
+                  <div>Type: <span class="font-bold text-slate-800">{{ selectedProject.project_type }}</span></div>
+                  <div>Montant estimé: <span class="font-bold text-slate-800">{{ selectedProject.estimated_amount ? selectedProject.estimated_amount + ' €' : 'À chiffrer' }}</span></div>
+                  <div>Priorité: <span class="font-bold text-slate-800">{{ selectedProject.priority }}</span></div>
+                  <div>Échéance: <span class="font-bold text-slate-800">{{ selectedProject.deadline || 'Non spécifiée' }}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Description -->
+            <div v-if="selectedProject.description" class="bg-amber-50/60 p-4 rounded-xl border border-amber-200/60 space-y-1">
+              <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Besoins du client & Notes</h4>
+              <p class="text-xs text-amber-800 whitespace-pre-wrap">{{ selectedProject.description }}</p>
+            </div>
+
+            <!-- PHOTO GALLERY SECTION -->
+            <div class="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between">
+                <h4 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Camera class="h-4 w-4 text-indigo-600" /> Photos du projet ({{ (selectedProject.photos || []).length }})
+                </h4>
+
+                <div class="flex items-center gap-2">
+                  <label class="cursor-pointer text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                    <Plus class="h-3.5 w-3.5" /> Ajouter des photos
+                    <input type="file" accept="image/*" multiple class="hidden" @change="handleCardPhotoUpload" />
+                  </label>
+                </div>
+              </div>
+
+              <!-- Photos Grid -->
+              <div v-if="selectedProject.photos && selectedProject.photos.length > 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 pt-1">
+                <div 
+                  v-for="(photo, idx) in selectedProject.photos" 
+                  :key="photo"
+                  @click="openLightbox(selectedProject.photos, idx)"
+                  class="relative aspect-square rounded-xl overflow-hidden border border-slate-200 cursor-pointer group shadow-2xs hover:opacity-90 transition-all"
                 >
-                  <Plus class="h-3 w-3" /> + Photo
-                </button>
-              </td>
-              <td class="p-4">
-                <div v-if="project.contact_phone" class="font-bold text-slate-700">{{ project.contact_phone }}</div>
-                <div v-if="project.address" class="text-[10px] text-slate-400 truncate max-w-[150px]">{{ project.address }}</div>
-              </td>
-              <td class="p-4 font-bold text-slate-600">
-                {{ project.project_type }}
-              </td>
-              <td class="p-4 font-black text-slate-900">
-                {{ project.estimated_amount ? project.estimated_amount + ' €' : '-' }}
-              </td>
-              <td class="p-4">
-                <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border" :class="getStatusBadge(project.status)">
-                  {{ project.status }}
-                </span>
-              </td>
-              <td class="p-4 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button @click="openNotesModal(project)" class="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50">
-                    <MessageSquare class="h-4 w-4" />
-                  </button>
-                  <button @click="openEditProjectModal(project)" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100">
-                    <Pencil class="h-4 w-4" />
-                  </button>
-                  <button @click="confirmDeleteProject(project.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50">
-                    <Trash2 class="h-4 w-4" />
-                  </button>
+                  <img :src="photo" class="w-full h-full object-cover" />
+                  <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold">
+                    Agrandir
+                  </div>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+
+              <div v-else class="text-center py-6 text-slate-400 text-xs italic">
+                Aucune photo pour ce projet. Vous pouvez en ajouter dès maintenant.
+              </div>
+            </div>
+
+            <!-- Notes & Suivi Section (Identique à Suivi Vitrine) -->
+            <div class="space-y-3">
+              <h4 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <FileText class="h-4 w-4 text-slate-500" /> Notes & Suivi ({{ selectedProject?.id ? (projectNotes[selectedProject.id]?.length || 0) : 0 }})
+              </h4>
+
+              <!-- Add Note Input -->
+              <div class="flex gap-2">
+                <input 
+                  v-model="newNoteText"
+                  placeholder="Ajouter une note de contact, relance client..."
+                  @keyup.enter="addNote"
+                  class="flex-1 px-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400"
+                />
+                <Button @click="addNote" size="icon" class="bg-indigo-600 hover:bg-indigo-500 shrink-0 rounded-xl">
+                  <Send class="h-4 w-4 text-white" />
+                </Button>
+              </div>
+
+              <!-- Notes List -->
+              <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1" v-if="selectedProject?.id">
+                <div 
+                  v-for="(note, index) in projectNotes[selectedProject.id]" 
+                  :key="note.id || index" 
+                  class="bg-slate-50/80 p-3 rounded-xl border border-slate-100/60 space-y-1 relative group"
+                >
+                  <div class="flex justify-between items-center text-[10px]">
+                    <span class="font-bold text-slate-400">Note #{{ projectNotes[selectedProject.id].length - index }}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="font-medium text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded">{{ note.date }}</span>
+                      <button 
+                        @click="deleteNote(note.id, selectedProject?.id || 0)" 
+                        class="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
+                        title="Supprimer la note"
+                      >
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-sm text-slate-700 font-medium whitespace-pre-wrap" v-html="parseTextWithLinks(note.text)"></p>
+                </div>
+                
+                <div v-if="!projectNotes[selectedProject?.id || 0]?.length" class="text-center py-6 text-slate-400 text-sm italic">
+                  Aucune note pour le moment.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
     </div>
 
-    <!-- MODAL: ADD / EDIT COMMERCIAL PROJECT WITH DIRECT PHOTOS -->
+    <!-- MODAL: NOUVEAU PROJET COMMERCIAL (AVEC PHOTOS DIRECTES) -->
     <div 
-      v-if="showProjectModal" 
-      class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto"
-      @click.self="showProjectModal = false"
+      v-if="showAddModal" 
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" 
+      @click="showAddModal = false"
     >
-      <div class="bg-white rounded-[32px] w-full max-w-2xl border border-slate-100 shadow-2xl p-6 md:p-8 space-y-6 my-8 animate-in fade-in zoom-in-95 duration-200">
+      <div 
+        class="bg-white rounded-2xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]" 
+        @click.stop
+      >
         
         <!-- Modal Header -->
-        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Building2 class="h-5 w-5" />
-            </div>
-            <div>
-              <h2 class="text-xl font-black text-slate-900 uppercase">
-                {{ isEditing ? 'Modifier le Projet Commercial' : 'Nouveau Projet Commercial' }}
-              </h2>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Renseignez les détails du client et joignez directement les photos
-              </p>
-            </div>
+        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Nouveau Projet Commercial</h3>
+            <p class="text-xs text-slate-500">Ajoutez une opportunité et joignez directement les photos</p>
           </div>
-          <button @click="showProjectModal = false" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <button @click="showAddModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X class="h-5 w-5" />
           </button>
         </div>
 
-        <!-- Form Content -->
-        <div class="space-y-4 max-h-[65vh] overflow-y-auto pr-1 no-scrollbar">
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Project Name -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Nom du Projet *</label>
-              <Input 
-                v-model="projectForm.name" 
-                placeholder="Ex: Enseigne lumineuse restaurant" 
-                class="rounded-xl bg-slate-50 border-slate-100 font-bold"
-              />
-            </div>
-
-            <!-- Client / Company -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Client / Société *</label>
-              <Input 
-                v-model="projectForm.client" 
-                placeholder="Ex: Le Bistrot Parisien" 
-                class="rounded-xl bg-slate-50 border-slate-100 font-bold"
-              />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Contact Name -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Interlocuteur</label>
-              <Input 
-                v-model="projectForm.contact_name" 
-                placeholder="Nom du responsable" 
-                class="rounded-xl bg-slate-50 border-slate-100"
-              />
-            </div>
-
-            <!-- Contact Phone -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Téléphone</label>
-              <Input 
-                v-model="projectForm.contact_phone" 
-                placeholder="06 12 34 56 78" 
-                class="rounded-xl bg-slate-50 border-slate-100"
-              />
-            </div>
-
-            <!-- Contact Email -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Email</label>
-              <Input 
-                v-model="projectForm.contact_email" 
-                placeholder="contact@client.fr" 
-                class="rounded-xl bg-slate-50 border-slate-100"
-              />
-            </div>
-          </div>
-
-          <!-- Address -->
+        <!-- Modal Content -->
+        <div class="p-6 space-y-4 overflow-y-auto flex-1">
           <div class="space-y-1">
-            <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Adresse / Localisation du chantier</label>
-            <Input 
-              v-model="projectForm.address" 
-              placeholder="Ex: 14 Avenue des Champs-Élysées, 75008 Paris" 
-              class="rounded-xl bg-slate-50 border-slate-100"
+            <label class="text-xs font-bold text-slate-700">Nom du Projet *</label>
+            <input 
+              v-model="newProject.name"
+              placeholder="Ex: Enseigne lumineuse & Vitrine"
+              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium"
             />
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Project Type -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Type de projet</label>
-              <select 
-                v-model="projectForm.project_type" 
-                class="w-full rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
-              >
-                <option v-for="t in projectTypes" :key="t" :value="t">{{ t }}</option>
-              </select>
-            </div>
-
-            <!-- Status -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Statut</label>
-              <select 
-                v-model="projectForm.status" 
-                class="w-full rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
-              >
-                <option v-for="s in statuses.filter(x => x !== 'Tous')" :key="s" :value="s">{{ s }}</option>
-              </select>
-            </div>
-
-            <!-- Priority -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Priorité</label>
-              <select 
-                v-model="projectForm.priority" 
-                class="w-full rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
-              >
-                <option v-for="p in priorities" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Estimated Amount -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Montant Estimé (€)</label>
-              <Input 
-                v-model="projectForm.estimated_amount" 
-                placeholder="Ex: 3500" 
-                class="rounded-xl bg-slate-50 border-slate-100 font-bold"
-              />
-            </div>
-
-            <!-- Deadline -->
-            <div class="space-y-1">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Échéance prévue</label>
-              <Input 
-                v-model="projectForm.deadline" 
-                type="date"
-                class="rounded-xl bg-slate-50 border-slate-100 text-xs font-bold"
-              />
-            </div>
-          </div>
-
-          <!-- Description -->
           <div class="space-y-1">
-            <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Description & Besoins client</label>
-            <textarea 
-              v-model="projectForm.description" 
-              rows="3" 
-              placeholder="Dimensions, couleurs souhaitées, logo fourni, contraintes techniques..."
-              class="w-full rounded-xl bg-slate-50 border border-slate-100 p-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            ></textarea>
+            <label class="text-xs font-bold text-slate-700">Client / Entreprise *</label>
+            <input 
+              v-model="newProject.client"
+              placeholder="Ex: SAS Restaurant Le Palais"
+              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium"
+            />
           </div>
 
-          <!-- DIRECT PHOTO UPLOAD SECTION -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Contact</label>
+              <input 
+                v-model="newProject.contact_name"
+                placeholder="Nom du contact"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Téléphone</label>
+              <input 
+                v-model="newProject.contact_phone"
+                placeholder="06 12 34 56 78"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-700">Adresse / Ville</label>
+            <input 
+              v-model="newProject.address"
+              placeholder="Ex: 15 rue de Paris, 75001 Paris"
+              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Type de Projet</label>
+              <select 
+                v-model="newProject.project_type"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              >
+                <option value="Enseigne / Signalétique">Enseigne / Signalétique</option>
+                <option value="Site Web / Vitrine">Site Web / Vitrine</option>
+                <option value="Logiciel de Caisse">Logiciel de Caisse</option>
+                <option value="Marquage Véhicule">Marquage Véhicule</option>
+                <option value="Print & Flyers">Print & Flyers</option>
+                <option value="Autre">Autre</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Montant Estimé (€)</label>
+              <input 
+                v-model="newProject.estimated_amount"
+                placeholder="Ex: 3500"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Statut</label>
+              <select 
+                v-model="newProject.status"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              >
+                <option value="Devis à faire">Devis à faire</option>
+                <option value="Rendez-vous pris">Rendez-vous pris</option>
+                <option value="Devis envoyé">Devis envoyé</option>
+                <option value="Négociation">Négociation</option>
+                <option value="Gagné / Signé">Gagné / Signé</option>
+                <option value="Perdu">Perdu</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Date limite</label>
+              <input 
+                v-model="newProject.deadline"
+                placeholder="Ex: 25 Octobre"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              />
+            </div>
+          </div>
+
+          <!-- DIRECT PHOTO UPLOAD IN CREATION MODAL -->
           <div class="space-y-2 pt-2 border-t border-slate-100">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Camera class="h-4 w-4 text-indigo-600" />
-                <span>Photos du projet (Magasin, Enseigne actuelle, Devis, Plan...)</span>
+                <span>Photos du projet (Direct)</span>
               </label>
-              <span class="text-[10px] font-bold text-slate-400">
-                {{ projectForm.photos.length }} photo(s)
-              </span>
+              <span class="text-xs font-bold text-indigo-600">{{ newProject.photos.length }} photo(s)</span>
             </div>
 
-            <!-- Direct Upload Actions (Camera + Gallery) -->
-            <div class="flex flex-wrap items-center gap-3">
-              <!-- Take photo directly (Camera mobile) -->
-              <label class="cursor-pointer flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-black transition-all">
+            <div class="flex items-center gap-2">
+              <label class="flex-1 py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
                 <Camera class="h-4 w-4" />
-                <span>Prendre une photo (Appareil)</span>
+                <span>Prendre photo</span>
                 <input 
                   type="file" 
                   accept="image/*" 
                   capture="environment" 
                   class="hidden" 
-                  @change="handlePhotoUpload"
-                  :disabled="isUploadingPhotos"
+                  @change="handleAddPhotoUpload" 
                 />
               </label>
 
-              <!-- Pick multiple files from device -->
-              <label class="cursor-pointer flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-all">
+              <label class="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
                 <Upload class="h-4 w-4" />
-                <span>Importer depuis la galerie</span>
+                <span>Galerie</span>
                 <input 
                   type="file" 
                   accept="image/*" 
                   multiple 
                   class="hidden" 
-                  @change="handlePhotoUpload"
-                  :disabled="isUploadingPhotos"
+                  @change="handleAddPhotoUpload" 
                 />
               </label>
-
-              <span v-if="isUploadingPhotos" class="flex items-center gap-2 text-xs font-bold text-indigo-600 animate-pulse">
-                <Loader2 class="h-4 w-4 animate-spin" />
-                <span>{{ uploadProgressText }}</span>
-              </span>
             </div>
 
-            <!-- Uploaded Photos Preview Grid -->
-            <div v-if="projectForm.photos.length > 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 pt-2">
+            <p v-if="isUploadingAddPhotos" class="text-xs text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse">
+              <Loader2 class="h-3.5 w-3.5 animate-spin" />
+              <span>{{ addPhotoUploadProgress }}</span>
+            </p>
+
+            <!-- Thumbnails grid -->
+            <div v-if="newProject.photos.length > 0" class="grid grid-cols-4 gap-2 pt-1">
               <div 
-                v-for="(photo, index) in projectForm.photos" 
+                v-for="(photo, idx) in newProject.photos" 
                 :key="photo"
-                class="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 group shadow-2xs"
+                class="relative aspect-square rounded-xl overflow-hidden border border-slate-200"
               >
                 <img :src="photo" class="w-full h-full object-cover" />
                 <button 
                   type="button" 
-                  @click="removeFormPhoto(index)" 
-                  class="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center hover:bg-rose-700 shadow-md transition-all"
-                  title="Supprimer la photo"
+                  @click="removeAddPhoto(idx)"
+                  class="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center"
                 >
-                  <X class="h-3.5 w-3.5" />
+                  <X class="h-3 w-3" />
                 </button>
               </div>
             </div>
-
-            <p v-else class="text-[11px] text-slate-400 italic">
-              Aucune photo attachée pour le moment. Vous pouvez en prendre une directement ou importer des fichiers.
-            </p>
           </div>
 
         </div>
 
         <!-- Modal Footer -->
-        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+        <div class="p-6 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50">
+          <Button variant="outline" size="sm" @click="showAddModal = false">Annuler</Button>
           <Button 
-            variant="ghost" 
-            @click="showProjectModal = false" 
-            class="rounded-xl font-bold text-xs"
+            size="sm" 
+            @click="addProject" 
+            :disabled="isSubmittingAdd || isUploadingAddPhotos"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white"
           >
-            Annuler
-          </Button>
-
-          <Button 
-            @click="saveProject" 
-            :disabled="isSubmitting || isUploadingPhotos"
-            class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-6 py-5 shadow-lg shadow-indigo-100 uppercase tracking-wider"
-          >
-            <Loader2 v-if="isSubmitting" class="h-4 w-4 animate-spin mr-2" />
-            <span>{{ isEditing ? 'Mettre à jour le projet' : 'Enregistrer le projet' }}</span>
+            <Loader2 v-if="isSubmittingAdd" class="h-3.5 w-3.5 animate-spin mr-1.5" />
+            <span>Créer le Projet</span>
           </Button>
         </div>
 
       </div>
     </div>
 
-    <!-- LIGHTBOX MODAL: FULL RESOLUTION PHOTO VIEWER -->
+    <!-- LIGHTBOX (FULL-SCREEN PHOTO ZOOM) -->
     <div 
       v-if="isLightboxOpen && activeLightboxPhotos.length > 0" 
       class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
       @click.self="isLightboxOpen = false"
     >
-      <!-- Top Bar -->
       <div class="absolute top-4 inset-x-4 flex items-center justify-between text-white z-10">
-        <span class="text-xs font-black tracking-widest bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-sm">
-          PHOTO {{ activePhotoIndex + 1 }} / {{ activeLightboxPhotos.length }}
+        <span class="text-xs font-bold tracking-widest bg-white/10 px-3 py-1 rounded-xl">
+          {{ activePhotoIndex + 1 }} / {{ activeLightboxPhotos.length }}
         </span>
-
-        <div class="flex items-center gap-2">
-          <!-- Download -->
-          <a 
-            :href="activeLightboxPhotos[activePhotoIndex]" 
-            target="_blank" 
-            download 
-            class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="Télécharger"
-          >
-            <Download class="h-5 w-5" />
-          </a>
-
-          <!-- Delete photo from project if linked -->
-          <button 
-            v-if="lightboxProjectId" 
-            @click="deleteLightboxPhoto" 
-            class="p-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white transition-colors"
-            title="Supprimer la photo"
-          >
-            <Trash2 class="h-5 w-5" />
-          </button>
-
-          <!-- Close -->
-          <button 
-            @click="isLightboxOpen = false" 
-            class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-          >
-            <X class="h-5 w-5" />
-          </button>
-        </div>
+        <button @click="isLightboxOpen = false" class="p-2 text-white hover:text-slate-300">
+          <X class="h-6 w-6" />
+        </button>
       </div>
 
-      <!-- Main Photo -->
-      <div class="relative max-w-4xl max-h-[80vh] flex items-center justify-center">
-        <img 
-          :src="activeLightboxPhotos[activePhotoIndex]" 
-          class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200" 
-          alt="Vue agrandie" 
-        />
-      </div>
+      <img 
+        :src="activeLightboxPhotos[activePhotoIndex]" 
+        class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" 
+      />
 
-      <!-- Navigation Arrows -->
       <button 
         v-if="activeLightboxPhotos.length > 1"
-        @click="prevLightboxPhoto" 
-        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-all backdrop-blur-sm"
+        @click="activePhotoIndex = (activePhotoIndex > 0 ? activePhotoIndex - 1 : activeLightboxPhotos.length - 1)" 
+        class="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white text-3xl hover:bg-white/10 rounded-full"
       >
-        <ChevronLeft class="h-6 w-6" />
+        ‹
       </button>
 
       <button 
         v-if="activeLightboxPhotos.length > 1"
-        @click="nextLightboxPhoto" 
-        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-all backdrop-blur-sm"
+        @click="activePhotoIndex = (activePhotoIndex < activeLightboxPhotos.length - 1 ? activePhotoIndex + 1 : 0)" 
+        class="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white text-3xl hover:bg-white/10 rounded-full"
       >
-        <ChevronRight class="h-6 w-6" />
+        ›
       </button>
-    </div>
-
-    <!-- NOTES / JOURNAL MODAL -->
-    <div 
-      v-if="showNotesModal && activeProjectForNotes" 
-      class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
-      @click.self="showNotesModal = false"
-    >
-      <div class="bg-white rounded-[32px] w-full max-w-lg border border-slate-100 shadow-2xl p-6 md:p-8 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-        
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-black text-slate-900 uppercase">Journal de Suivi Commercial</h3>
-            <p class="text-xs font-bold text-slate-500">{{ activeProjectForNotes.client }} — {{ activeProjectForNotes.name }}</p>
-          </div>
-          <button @click="showNotesModal = false" class="p-2 rounded-xl text-slate-400 hover:text-slate-600">
-            <X class="h-5 w-5" />
-          </button>
-        </div>
-
-        <!-- Notes List -->
-        <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
-          <div 
-            v-for="note in (notesMap[activeProjectForNotes.id] || [])" 
-            :key="note.id" 
-            class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-start justify-between gap-3"
-          >
-            <div class="space-y-1">
-              <span class="text-[9px] font-black uppercase tracking-wider text-indigo-600 block">{{ note.date }}</span>
-              <p class="text-xs text-slate-700 font-medium whitespace-pre-wrap">{{ note.text }}</p>
-            </div>
-            <button 
-              @click="handleDeleteNote(note.id)" 
-              class="text-slate-300 hover:text-rose-500 p-1"
-              title="Supprimer la note"
-            >
-              <Trash2 class="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div v-if="!(notesMap[activeProjectForNotes.id] || []).length" class="text-center py-8 text-slate-400 text-xs italic">
-            Aucune note pour le moment. Notez vos appels, relances et accords ci-dessous.
-          </div>
-        </div>
-
-        <!-- Add Note Input -->
-        <div class="space-y-2 pt-2 border-t border-slate-100">
-          <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Ajouter une note de suivi</label>
-          <div class="flex gap-2">
-            <Input 
-              v-model="newNoteInput" 
-              placeholder="Ex: Devis envoyé ce matin, relance prévue vendredi..." 
-              class="rounded-xl bg-slate-50 border-slate-100 font-medium text-xs"
-              @keyup.enter="handleAddNote"
-            />
-            <Button 
-              @click="handleAddNote" 
-              :disabled="isAddingNote || !newNoteInput.trim()"
-              class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-4"
-            >
-              <Send class="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-      </div>
     </div>
 
   </div>

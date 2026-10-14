@@ -14,7 +14,6 @@ import InstallerField from '@/views/InstallerField.vue'
 import InstallerReport from '@/views/InstallerReport.vue'
 import CommercialTasks from '@/views/CommercialTasks.vue'
 import CommercialProjects from '@/views/CommercialProjects.vue'
-import CommercialField from '@/views/CommercialField.vue'
 import BillingTracking from '@/views/BillingTracking.vue'
 const router = createRouter({
   history: createWebHistory(),
@@ -116,12 +115,6 @@ const router = createRouter({
       meta: { layout: 'admin' }
     },
     {
-      path: '/commercial-space',
-      name: 'commercial-space',
-      component: CommercialField,
-      meta: { layout: 'empty' }
-    },
-    {
       path: '/billing',
       name: 'billing',
       component: BillingTracking,
@@ -141,8 +134,8 @@ router.beforeEach((to, _from, next) => {
     // Si connecté en tant que poseur mais essaie d'accéder à l'admin, rediriger vers l'espace poseur
     next({ name: 'installer-field' })
   } else if (isAuthenticated && role === 'commercial' && !to.path.startsWith('/commercial') && to.name !== 'login') {
-    // Si connecté en tant que commercial, rediriger vers l'espace commercial
-    next({ name: 'commercial-space' })
+    // Si connecté en tant que commercial, rediriger vers Suivi Commercial
+    next({ name: 'commercial-projects' })
   } else {
     next()
   }

@@ -6,21 +6,13 @@ import {
   Plus, 
   Search, 
   Phone, 
-  Mail, 
   MapPin, 
   Camera, 
   Upload, 
   X, 
-  CheckCircle2, 
-  Clock, 
   LogOut, 
   Loader2, 
-  RefreshCw, 
-  Download, 
-  ChevronLeft, 
-  ChevronRight, 
-  ArrowLeft,
-  DollarSign
+  RefreshCw
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

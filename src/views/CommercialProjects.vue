@@ -7,35 +7,26 @@ import {
   Phone, 
   Mail, 
   MapPin, 
-  Calendar, 
   Trash2, 
   Pencil, 
-  Image as ImageIcon, 
   Camera, 
   Upload, 
   X, 
   CheckCircle2, 
   Clock, 
-  AlertCircle, 
-  ArrowRight, 
-  ExternalLink, 
   Download, 
   ChevronLeft, 
   ChevronRight, 
   MessageSquare, 
   Send, 
-  Filter, 
   LayoutGrid, 
   List, 
-  Sparkles,
   TrendingUp,
   DollarSign,
-  FileCheck2,
   RefreshCw,
   Loader2
 } from 'lucide-vue-next'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { commercialService, type CommercialProject, type CommercialNote } from '@/services/commercial'
@@ -300,12 +291,7 @@ const confirmDeleteProject = async (id: number) => {
   }
 }
 
-// Update status quickly from card
-const updateProjectStatus = async (project: CommercialProject, newStatus: string) => {
-  project.status = newStatus
-  await commercialService.updateProject(project.id, { status: newStatus })
-  showToast(`Statut mis à jour : "${newStatus}"`)
-}
+
 
 // --- Direct Card Photo Upload ---
 const cardUploadInput = ref<HTMLInputElement | null>(null)

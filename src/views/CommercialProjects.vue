@@ -23,7 +23,7 @@ import {
   Loader2, 
   ChevronLeft, 
   ChevronRight,
-  ExternalLink
+  Clock
 } from 'lucide-vue-next'
 import { commercialService, type CommercialProject, type CommercialNote } from '@/services/commercial'
 import { uploadToCloudinary } from '@/lib/cloudinary'
@@ -55,6 +55,8 @@ const newProject = ref({
   estimated_amount: '',
   deadline: '',
   description: '',
+  meeting_date: '',
+  meeting_note: '',
   photos: [] as string[]
 })
 
@@ -72,6 +74,131 @@ const targetProjectIdForUpload = ref<number | null>(null)
 const activeLightboxPhotos = ref<string[]>([])
 const activePhotoIndex = ref(0)
 const isLightboxOpen = ref(false)
+
+// Quick Meeting Modal State
+const showMeetingModal = ref(false)
+const targetProjectForMeeting = ref<CommercialProject | null>(null)
+const meetingForm = ref({
+  date: '',
+  note: ''
+})
+
+const meetingShortcuts = [
+  { label: "Aujourd'hui 14h", days: 0, hour: 14 },
+  { label: "Aujourd'hui 16h", days: 0, hour: 16 },
+  { label: 'Demain 10h', days: 1, hour: 10 },
+  { label: 'Demain 14h', days: 1, hour: 14 },
+  { label: 'Dans 2 jours', days: 2, hour: 10 },
+  { label: 'Dans 3 jours', days: 3, hour: 14 },
+  { label: 'Lundi prochain', days: 5, hour: 10 }
+]
+
+const openMeetingModal = (project: CommercialProject) => {
+  targetProjectForMeeting.value = project
+  meetingForm.value = {
+    date: project.meeting_date || '',
+    note: project.meeting_note || ''
+  }
+  showMeetingModal.value = true
+}
+
+const applyMeetingShortcut = (daysFromNow: number, hour: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + daysFromNow)
+  d.setHours(hour, 0, 0, 0)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  meetingForm.value.date = `${y}-${m}-${day}T${h}:00`
+}
+
+const applyNewProjectMeetingShortcut = (daysFromNow: number, hour: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + daysFromNow)
+  d.setHours(hour, 0, 0, 0)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  newProject.value.meeting_date = `${y}-${m}-${day}T${h}:00`
+}
+
+const saveMeeting = async () => {
+  if (!targetProjectForMeeting.value) return
+  const id = targetProjectForMeeting.value.id
+  const meeting_date = meetingForm.value.date
+  const meeting_note = meetingForm.value.note
+
+  await commercialService.updateProject(id, { meeting_date, meeting_note })
+  const p = projects.value.find(item => item.id === id)
+  if (p) {
+    p.meeting_date = meeting_date
+    p.meeting_note = meeting_note
+  }
+  if (selectedProject.value && selectedProject.value.id === id) {
+    selectedProject.value.meeting_date = meeting_date
+    selectedProject.value.meeting_note = meeting_note
+  }
+  showMeetingModal.value = false
+}
+
+const clearMeeting = async () => {
+  if (!targetProjectForMeeting.value) return
+  const id = targetProjectForMeeting.value.id
+  await commercialService.updateProject(id, { meeting_date: '', meeting_note: '' })
+  const p = projects.value.find(item => item.id === id)
+  if (p) {
+    p.meeting_date = ''
+    p.meeting_note = ''
+  }
+  if (selectedProject.value && selectedProject.value.id === id) {
+    selectedProject.value.meeting_date = ''
+    selectedProject.value.meeting_note = ''
+  }
+  showMeetingModal.value = false
+}
+
+// Format Meeting Date (Ex: Mer. 18 oct. à 14:30)
+const formatMeetingDate = (dateStr?: string) => {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    const str = d.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  } catch (e) {
+    return dateStr
+  }
+}
+
+// Relative day badge (Aujourd'hui, Demain, Dans 3 j)
+const getMeetingRelative = (dateStr?: string) => {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    const target = new Date(d)
+    target.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return "Aujourd'hui"
+    if (diffDays === 1) return 'Demain'
+    if (diffDays === -1) return 'Hier'
+    if (diffDays > 1 && diffDays <= 7) return `Dans ${diffDays} j`
+    if (diffDays < -1) return 'Passé'
+    return ''
+  } catch (e) {
+    return ''
+  }
+}
 
 // Fetch all projects & notes
 const fetchProjects = async () => {
@@ -102,7 +229,7 @@ const parseTextWithLinks = (text: string) => {
   })
 }
 
-// Status Colors exactly matching the project design
+// Status Colors
 const getStatusColor = (status: string) => {
   if (status === 'Perdu') return 'bg-rose-50 text-rose-700 border-rose-200'
   if (status === 'Gagné / Signé') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -131,6 +258,8 @@ const filteredProjects = computed(() => {
       list = list.filter(p => p.status === 'Gagné / Signé')
     } else if (activeFilter.value === 'En cours') {
       list = list.filter(p => ['Devis à faire', 'Devis envoyé', 'Négociation', 'Rendez-vous pris'].includes(p.status))
+    } else if (activeFilter.value === 'Avec RDV') {
+      list = list.filter(p => !!p.meeting_date)
     } else if (activeFilter.value === 'Perdus') {
       list = list.filter(p => p.status === 'Perdu')
     } else {
@@ -146,7 +275,8 @@ const filteredProjects = computed(() => {
       (p.contact_name && p.contact_name.toLowerCase().includes(q)) ||
       (p.contact_phone && p.contact_phone.toLowerCase().includes(q)) ||
       (p.address && p.address.toLowerCase().includes(q)) ||
-      (p.project_type && p.project_type.toLowerCase().includes(q))
+      (p.project_type && p.project_type.toLowerCase().includes(q)) ||
+      (p.meeting_note && p.meeting_note.toLowerCase().includes(q))
     )
   }
 
@@ -246,6 +376,8 @@ const addProject = async () => {
       estimated_amount: '',
       deadline: '',
       description: '',
+      meeting_date: '',
+      meeting_note: '',
       photos: []
     }
     showAddModal.value = false
@@ -261,6 +393,8 @@ const startEditing = () => {
   if (!selectedProject.value) return
   editingProjectData.value = {
     ...selectedProject.value,
+    meeting_date: selectedProject.value.meeting_date || '',
+    meeting_note: selectedProject.value.meeting_note || '',
     photos: [...(selectedProject.value.photos || [])]
   }
   isEditing.value = true
@@ -353,7 +487,7 @@ const openLightbox = (photos: string[], index = 0) => {
   isLightboxOpen.value = true
 }
 
-// Export CSV (identique à Suivi Vitrine)
+// Export CSV
 const exportCSV = () => {
   if (filteredProjects.value.length === 0) {
     alert("Aucun projet à exporter.")
@@ -363,7 +497,7 @@ const exportCSV = () => {
   const headers = [
     "Nom du Projet", "Client / Entreprise", "Contact", "Téléphone", 
     "Email", "Adresse", "Type de Projet", "Statut", "Montant Estimé", 
-    "Date Limite", "Priorité", "Photos (URLs)"
+    "Date Limite", "Priorité", "Prochain RDV", "Note RDV", "Photos (URLs)"
   ]
 
   const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`
@@ -381,6 +515,8 @@ const exportCSV = () => {
       escapeCSV(p.estimated_amount ? p.estimated_amount + '€' : ''),
       escapeCSV(p.deadline),
       escapeCSV(p.priority),
+      escapeCSV(formatMeetingDate(p.meeting_date)),
+      escapeCSV(p.meeting_note || ''),
       escapeCSV((p.photos || []).join(' | '))
     ].join(';')
   })
@@ -431,13 +567,13 @@ const exportCSV = () => {
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex overflow-x-auto no-scrollbar gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit shrink-0">
         <button 
-          v-for="filter in ['Tous', 'En cours', 'Devis à faire', 'Devis envoyé', 'Négociation', 'Gagnés / Signés', 'Perdus']" 
+          v-for="filter in ['Tous', 'Avec RDV', 'En cours', 'Devis à faire', 'Devis envoyé', 'Négociation', 'Gagnés / Signés', 'Perdus']" 
           :key="filter"
           @click="activeFilter = filter"
           class="px-4 py-2 text-[10px] font-bold rounded-lg transition-all whitespace-nowrap"
           :class="[
             activeFilter === filter 
-              ? (filter === 'Perdus' ? 'bg-rose-100 text-rose-700 shadow-sm' : 'bg-white text-slate-900 shadow-sm') 
+              ? (filter === 'Perdus' ? 'bg-rose-100 text-rose-700 shadow-sm' : filter === 'Avec RDV' ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-white text-slate-900 shadow-sm') 
               : 'text-slate-500 hover:text-slate-700'
           ]"
         >
@@ -450,7 +586,7 @@ const exportCSV = () => {
         <input 
           v-model="searchQuery"
           type="text"
-          placeholder="Rechercher un projet, client, ville..."
+          placeholder="Rechercher projet, client, RDV, ville..."
           class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium placeholder:text-slate-400 shadow-xs"
         />
       </div>
@@ -491,6 +627,55 @@ const exportCSV = () => {
 
         <CardContent class="p-4 pt-2 flex-1 flex flex-col justify-between gap-3" @click.stop>
           
+          <!-- PROCHAIN RENDEZ-VOUS AFFICHE EN GROS (PROMINENT DISPLAY) -->
+          <div 
+            @click.stop="openMeetingModal(project)"
+            class="rounded-xl p-3 transition-all cursor-pointer border group"
+            :class="[
+              project.meeting_date 
+                ? 'bg-gradient-to-br from-amber-50 to-orange-50/70 border-amber-300 text-amber-950 shadow-2xs hover:border-amber-400 hover:shadow-md' 
+                : 'bg-slate-50/80 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40'
+            ]"
+          >
+            <div v-if="project.meeting_date" class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                  <Clock class="h-3.5 w-3.5 text-amber-600" /> PROCHAIN RENDEZ-VOUS
+                </span>
+                <span 
+                  v-if="getMeetingRelative(project.meeting_date)" 
+                  class="text-[10px] font-black px-2 py-0.5 rounded-full"
+                  :class="[
+                    getMeetingRelative(project.meeting_date) === 'Aujourd\'hui' ? 'bg-rose-500 text-white animate-pulse' :
+                    getMeetingRelative(project.meeting_date) === 'Demain' ? 'bg-amber-500 text-white' :
+                    getMeetingRelative(project.meeting_date) === 'Passé' ? 'bg-slate-200 text-slate-700' :
+                    'bg-amber-200 text-amber-900'
+                  ]"
+                >
+                  {{ getMeetingRelative(project.meeting_date) }}
+                </span>
+              </div>
+              <div class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug flex items-center justify-between">
+                <span>{{ formatMeetingDate(project.meeting_date) }}</span>
+                <Pencil class="h-3.5 w-3.5 text-amber-600 opacity-60 group-hover:opacity-100 transition-opacity shrink-0 ml-1" />
+              </div>
+              <div v-if="project.meeting_note" class="text-xs text-amber-900/90 font-medium truncate flex items-center gap-1 bg-white/70 px-2 py-0.5 rounded-md border border-amber-200/50">
+                <span class="shrink-0">📍</span>
+                <span class="truncate">{{ project.meeting_note }}</span>
+              </div>
+            </div>
+
+            <div v-else class="flex items-center justify-between py-1 px-1 text-xs font-bold text-slate-400 group-hover:text-indigo-600">
+              <span class="flex items-center gap-2">
+                <Clock class="h-4 w-4 text-slate-400 group-hover:text-indigo-500" />
+                <span class="font-extrabold">+ Noter date prochain RDV</span>
+              </span>
+              <span class="text-[10px] font-black bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs group-hover:border-indigo-300 group-hover:text-indigo-600">
+                Planifier
+              </span>
+            </div>
+          </div>
+
           <!-- Direct Photos Thumbnails Preview -->
           <div class="space-y-1">
             <div class="flex items-center justify-between text-[10px]">
@@ -685,6 +870,31 @@ const exportCSV = () => {
               <input v-model="editingProjectData.address" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
             </div>
 
+            <!-- Rendez-vous Fields in Edit Form -->
+            <div class="bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 space-y-3">
+              <span class="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock class="h-3.5 w-3.5 text-amber-700" /> Rendez-vous Commercial
+              </span>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-bold text-slate-700">Date et Heure du RDV</label>
+                  <input 
+                    type="datetime-local" 
+                    v-model="editingProjectData.meeting_date" 
+                    class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white font-bold text-slate-800" 
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-bold text-slate-700">Précisions ou Lieu du RDV</label>
+                  <input 
+                    v-model="editingProjectData.meeting_note" 
+                    placeholder="Ex: Sur place à la boutique, Démo devis..." 
+                    class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white font-medium" 
+                  />
+                </div>
+              </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-700">Type de Projet</label>
@@ -762,9 +972,53 @@ const exportCSV = () => {
             </div>
           </div>
 
-          <!-- VIEW MODE (IDENTIQUE A SUIVI VITRINE) -->
+          <!-- VIEW MODE -->
           <div v-else class="space-y-6">
             
+            <!-- PROCHAIN RENDEZ-VOUS EN GROS (BANNER) -->
+            <div class="bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 p-4 sm:p-5 rounded-2xl border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+              <div class="flex items-center gap-3.5">
+                <div class="w-13 h-13 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-200 shrink-0">
+                  <Clock class="h-6 w-6" />
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-amber-800 block">
+                      PROCHAIN RENDEZ-VOUS
+                    </span>
+                    <span 
+                      v-if="selectedProject.meeting_date && getMeetingRelative(selectedProject.meeting_date)"
+                      class="text-[9px] font-black px-2 py-0.5 rounded-full"
+                      :class="[
+                        getMeetingRelative(selectedProject.meeting_date) === 'Aujourd\'hui' ? 'bg-rose-500 text-white animate-pulse' :
+                        getMeetingRelative(selectedProject.meeting_date) === 'Demain' ? 'bg-amber-500 text-white' :
+                        getMeetingRelative(selectedProject.meeting_date) === 'Passé' ? 'bg-slate-200 text-slate-700' :
+                        'bg-amber-200 text-amber-900'
+                      ]"
+                    >
+                      {{ getMeetingRelative(selectedProject.meeting_date) }}
+                    </span>
+                  </div>
+                  <h3 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+                    {{ selectedProject.meeting_date ? formatMeetingDate(selectedProject.meeting_date) : 'Aucun rendez-vous fixé' }}
+                  </h3>
+                  <p v-if="selectedProject.meeting_note" class="text-xs font-bold text-amber-900 mt-1 flex items-center gap-1.5">
+                    <span>📍</span>
+                    <span>{{ selectedProject.meeting_note }}</span>
+                  </p>
+                </div>
+              </div>
+
+              <Button 
+                size="sm" 
+                @click="openMeetingModal(selectedProject)" 
+                class="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-xs rounded-xl self-start sm:self-center"
+              >
+                <Clock class="h-3.5 w-3.5 mr-1.5" />
+                <span>{{ selectedProject.meeting_date ? 'Modifier le RDV' : '+ Fixer un RDV' }}</span>
+              </Button>
+            </div>
+
             <!-- Information Cards Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
@@ -899,7 +1153,7 @@ const exportCSV = () => {
       </div>
     </div>
 
-    <!-- MODAL: NOUVEAU PROJET COMMERCIAL (AVEC PHOTOS DIRECTES) -->
+    <!-- MODAL: NOUVEAU PROJET COMMERCIAL (AVEC DATE RDV ET PHOTOS DIRECTES) -->
     <div 
       v-if="showAddModal" 
       class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" 
@@ -914,7 +1168,7 @@ const exportCSV = () => {
         <div class="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 class="text-lg font-bold text-slate-900">Nouveau Projet Commercial</h3>
-            <p class="text-xs text-slate-500">Ajoutez une opportunité et joignez directement les photos</p>
+            <p class="text-xs text-slate-500">Ajoutez une opportunité, fixez un RDV et joignez les photos</p>
           </div>
           <button @click="showAddModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X class="h-5 w-5" />
@@ -939,6 +1193,58 @@ const exportCSV = () => {
               placeholder="Ex: SAS Restaurant Le Palais"
               class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium"
             />
+          </div>
+
+          <!-- Section Date de Rendez-vous -->
+          <div class="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200/80 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock class="h-3.5 w-3.5 text-amber-700" /> Date du Prochain Rendez-vous
+              </label>
+              <div class="flex items-center gap-1">
+                <button 
+                  type="button" 
+                  @click="applyNewProjectMeetingShortcut(0, 14)" 
+                  class="text-[9px] font-bold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800 hover:bg-amber-100"
+                >
+                  Aujourd'hui 14h
+                </button>
+                <button 
+                  type="button" 
+                  @click="applyNewProjectMeetingShortcut(1, 10)" 
+                  class="text-[9px] font-bold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800 hover:bg-amber-100"
+                >
+                  Demain 10h
+                </button>
+                <button 
+                  type="button" 
+                  @click="applyNewProjectMeetingShortcut(1, 14)" 
+                  class="text-[9px] font-bold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800 hover:bg-amber-100"
+                >
+                  Demain 14h
+                </button>
+                <button 
+                  type="button" 
+                  @click="applyNewProjectMeetingShortcut(2, 14)" 
+                  class="text-[9px] font-bold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800 hover:bg-amber-100"
+                >
+                  +2 jours
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input 
+                type="datetime-local" 
+                v-model="newProject.meeting_date" 
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white font-bold text-slate-800" 
+              />
+              <input 
+                v-model="newProject.meeting_note" 
+                placeholder="Lieu / note du RDV (ex: Sur place)" 
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white font-medium" 
+              />
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -1090,7 +1396,7 @@ const exportCSV = () => {
             size="sm" 
             @click="addProject" 
             :disabled="isSubmittingAdd || isUploadingAddPhotos"
-            class="bg-indigo-600 hover:bg-indigo-500 text-white"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
           >
             <Loader2 v-if="isSubmittingAdd" class="h-3.5 w-3.5 animate-spin mr-1.5" />
             <span>Créer le Projet</span>
@@ -1100,10 +1406,93 @@ const exportCSV = () => {
       </div>
     </div>
 
+    <!-- QUICK MEETING SETTER MODAL -->
+    <div 
+      v-if="showMeetingModal && targetProjectForMeeting" 
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" 
+      @click="showMeetingModal = false"
+    >
+      <div 
+        class="bg-white rounded-2xl max-w-md w-full overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200" 
+        @click.stop
+      >
+        <!-- Header -->
+        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Clock class="h-5 w-5 text-amber-600" /> Date du Prochain Rendez-vous
+            </h3>
+            <p class="text-xs text-slate-500">{{ targetProjectForMeeting.client }} — {{ targetProjectForMeeting.name }}</p>
+          </div>
+          <button @click="showMeetingModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="p-6 space-y-4">
+          <!-- Shortcuts -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500">Raccourcis rapides</label>
+            <div class="flex flex-wrap gap-1.5">
+              <button 
+                type="button"
+                v-for="sc in meetingShortcuts" 
+                :key="sc.label" 
+                @click="applyMeetingShortcut(sc.days, sc.hour)" 
+                class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-amber-50 hover:text-amber-800 transition-colors"
+              >
+                {{ sc.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Date & Time Input -->
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-700">Date et Heure du Rendez-vous</label>
+            <input 
+              v-model="meetingForm.date" 
+              type="datetime-local" 
+              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none transition-all font-bold text-slate-800"
+            />
+          </div>
+
+          <!-- Location / Note Input -->
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-700">Lieu ou Précisions (Optionnel)</label>
+            <input 
+              v-model="meetingForm.note" 
+              placeholder="Ex: À la boutique du client, Démo logiciel..." 
+              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none transition-all font-medium"
+            />
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+          <button 
+            v-if="targetProjectForMeeting.meeting_date" 
+            @click="clearMeeting" 
+            class="text-xs font-bold text-rose-500 hover:underline"
+          >
+            Supprimer le RDV
+          </button>
+          <div v-else></div>
+
+          <div class="flex items-center gap-2">
+            <Button variant="outline" size="sm" @click="showMeetingModal = false">Annuler</Button>
+            <Button size="sm" @click="saveMeeting" class="bg-amber-600 hover:bg-amber-500 text-white font-bold">
+              Enregistrer le RDV
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- LIGHTBOX (FULL-SCREEN PHOTO ZOOM) -->
     <div 
       v-if="isLightboxOpen && activeLightboxPhotos.length > 0" 
-      class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
+      class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4" 
       @click.self="isLightboxOpen = false"
     >
       <div class="absolute top-4 inset-x-4 flex items-center justify-between text-white z-10">

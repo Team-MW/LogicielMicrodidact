@@ -16,6 +16,8 @@ export interface CommercialProject {
   deadline?: string
   description?: string
   photos: string[]
+  meeting_date?: string // Date et heure du rendez-vous
+  meeting_note?: string // Lieu ou précision du rendez-vous
   created_at?: string
 }
 

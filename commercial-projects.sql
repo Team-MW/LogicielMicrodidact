@@ -18,8 +18,14 @@ CREATE TABLE IF NOT EXISTS commercial_projects (
     deadline TEXT,
     description TEXT,
     photos TEXT[] DEFAULT '{}',
+    meeting_date TEXT,
+    meeting_note TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Si la table existe déjà, ajouter les colonnes :
+ALTER TABLE commercial_projects ADD COLUMN IF NOT EXISTS meeting_date TEXT;
+ALTER TABLE commercial_projects ADD COLUMN IF NOT EXISTS meeting_note TEXT;
 
 CREATE TABLE IF NOT EXISTS commercial_project_notes (
     id SERIAL PRIMARY KEY,

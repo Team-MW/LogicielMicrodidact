@@ -15,6 +15,7 @@ export interface CommercialProject {
   commercial_name?: string
   deadline?: string
   description?: string
+  website?: string // Site Web / Lien URL du projet
   photos: string[]
   meeting_date?: string // Date et heure du rendez-vous
   meeting_note?: string // Lieu ou précision du rendez-vous
@@ -100,14 +101,25 @@ export const commercialService = {
     }
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('commercial_projects')
         .insert([projectToSave])
         .select()
         .single()
 
+      if (error && (error.message.includes('schema cache') || error.message.includes('column'))) {
+        const sanitized: any = { ...projectToSave }
+        delete sanitized.website
+        delete sanitized.meeting_date
+        delete sanitized.meeting_note
+        const retry = await supabase.from('commercial_projects').insert([sanitized]).select().single()
+        data = retry.data
+        error = retry.error
+      }
+
       if (!error && data) {
         const created: CommercialProject = {
+          ...projectToSave,
           ...data,
           photos: Array.isArray(data.photos) ? data.photos : (data.photos ? JSON.parse(data.photos) : [])
         }
@@ -133,10 +145,19 @@ export const commercialService = {
 
   async updateProject(id: number, updates: Partial<CommercialProject>): Promise<boolean> {
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('commercial_projects')
         .update(updates)
         .eq('id', id)
+
+      if (error && (error.message.includes('schema cache') || error.message.includes('column'))) {
+        const sanitized: any = { ...updates }
+        delete sanitized.website
+        delete sanitized.meeting_date
+        delete sanitized.meeting_note
+        const retry = await supabase.from('commercial_projects').update(sanitized).eq('id', id)
+        error = retry.error
+      }
 
       if (error) {
         console.warn('Supabase update failed:', error.message)

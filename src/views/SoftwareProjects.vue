@@ -385,7 +385,7 @@ const cancelEditing = () => {
 const saveProjectUpdate = async () => {
   if (!editingProjectData.value) return
   
-  const { error } = await supabase.from('software_projects').update({
+  const updatePayload: Record<string, any> = {
     name: editingProjectData.value.name,
     client: editingProjectData.value.client,
     status: editingProjectData.value.status,
@@ -399,7 +399,17 @@ const saveProjectUpdate = async () => {
     stripe_customer_id: editingProjectData.value.stripe_customer_id || null,
     search_console: editingProjectData.value.search_console || false,
     domain_name: editingProjectData.value.domain_name || null
-  }).eq('id', editingProjectData.value.id)
+  }
+
+  let { error } = await supabase.from('software_projects').update(updatePayload).eq('id', editingProjectData.value.id)
+
+  if (error && (error.message.includes('payment_end_date') || error.message.includes('payment_note') || error.message.includes('schema cache'))) {
+    console.warn("Column not found in DB schema, retrying without payment date columns:", error.message)
+    delete updatePayload.payment_end_date
+    delete updatePayload.payment_note
+    const retry = await supabase.from('software_projects').update(updatePayload).eq('id', editingProjectData.value.id)
+    error = retry.error
+  }
   
   if (!error) {
     const index = projects.value.findIndex(p => p.id === editingProjectData.value.id)

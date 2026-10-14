@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS commercial_projects (
 -- Si la table existe déjà, ajouter les colonnes :
 ALTER TABLE commercial_projects ADD COLUMN IF NOT EXISTS meeting_date TEXT;
 ALTER TABLE commercial_projects ADD COLUMN IF NOT EXISTS meeting_note TEXT;
+ALTER TABLE commercial_projects ADD COLUMN IF NOT EXISTS website TEXT;
 
 CREATE TABLE IF NOT EXISTS commercial_project_notes (
     id SERIAL PRIMARY KEY,

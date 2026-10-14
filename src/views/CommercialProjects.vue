@@ -23,7 +23,9 @@ import {
   Loader2, 
   ChevronLeft, 
   ChevronRight,
-  Clock
+  Clock,
+  Globe,
+  ExternalLink
 } from 'lucide-vue-next'
 import { commercialService, type CommercialProject, type CommercialNote } from '@/services/commercial'
 import { uploadToCloudinary } from '@/lib/cloudinary'
@@ -49,6 +51,7 @@ const newProject = ref({
   contact_phone: '',
   contact_email: '',
   address: '',
+  website: '',
   project_type: 'Enseigne / Signalétique',
   status: 'Devis à faire',
   priority: 'Moyenne',
@@ -213,6 +216,13 @@ onMounted(() => {
   fetchProjects()
 })
 
+const formatUrl = (url?: string) => {
+  if (!url) return ''
+  const trimmed = url.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
 const parseTextWithLinks = (text: string) => {
   if (!text) return ''
   const escaped = text
@@ -222,10 +232,10 @@ const parseTextWithLinks = (text: string) => {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(?:fr|com|org|net|io|co|be|ch|eu|dev|app|online|shop|pro)(?:\/[^\s]*)?)/gi
   return escaped.replace(urlRegex, (url) => {
-    const href = url.startsWith('www') ? `https://${url}` : url
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all font-bold">${url}</a>`
+    const href = formatUrl(url)
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline hover:text-indigo-800 break-all font-bold inline-flex items-center gap-0.5" onclick="event.stopPropagation()">${url} ↗</a>`
   })
 }
 
@@ -275,6 +285,7 @@ const filteredProjects = computed(() => {
       (p.contact_name && p.contact_name.toLowerCase().includes(q)) ||
       (p.contact_phone && p.contact_phone.toLowerCase().includes(q)) ||
       (p.address && p.address.toLowerCase().includes(q)) ||
+      (p.website && p.website.toLowerCase().includes(q)) ||
       (p.project_type && p.project_type.toLowerCase().includes(q)) ||
       (p.meeting_note && p.meeting_note.toLowerCase().includes(q))
     )
@@ -370,6 +381,7 @@ const addProject = async () => {
       contact_phone: '',
       contact_email: '',
       address: '',
+      website: '',
       project_type: 'Enseigne / Signalétique',
       status: 'Devis à faire',
       priority: 'Moyenne',
@@ -393,11 +405,21 @@ const startEditing = () => {
   if (!selectedProject.value) return
   editingProjectData.value = {
     ...selectedProject.value,
+    website: selectedProject.value.website || '',
     meeting_date: selectedProject.value.meeting_date || '',
     meeting_note: selectedProject.value.meeting_note || '',
     photos: [...(selectedProject.value.photos || [])]
   }
   isEditing.value = true
+}
+
+const updateWebsite = async (projectId: number, newWebsite: string) => {
+  await commercialService.updateProject(projectId, { website: newWebsite })
+  const p = projects.value.find(item => item.id === projectId)
+  if (p) p.website = newWebsite
+  if (selectedProject.value && selectedProject.value.id === projectId) {
+    selectedProject.value.website = newWebsite
+  }
 }
 
 const cancelEditing = () => {
@@ -623,6 +645,22 @@ const exportCSV = () => {
             Client: <span class="font-bold text-slate-700">{{ project.client }}</span>
             <span v-if="project.contact_phone" class="ml-1 text-indigo-600 font-semibold">• {{ project.contact_phone }}</span>
           </CardDescription>
+
+          <!-- Clickable Website Link on Card -->
+          <div v-if="project.website" class="pt-1.5 flex items-center">
+            <a 
+              :href="formatUrl(project.website)" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              @click.stop 
+              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200 transition-colors group/link max-w-full shadow-2xs"
+              title="Cliquer pour visiter le site web"
+            >
+              <Globe class="h-3 w-3 text-indigo-600 shrink-0" />
+              <span class="truncate">{{ project.website.replace(/^https?:\/\//i, '').replace(/^www\./i, '') }}</span>
+              <ExternalLink class="h-2.5 w-2.5 text-indigo-400 group-hover/link:text-indigo-600 shrink-0 ml-0.5" />
+            </a>
+          </div>
         </CardHeader>
 
         <CardContent class="p-4 pt-2 flex-1 flex flex-col justify-between gap-3" @click.stop>
@@ -865,9 +903,17 @@ const exportCSV = () => {
               </div>
             </div>
 
-            <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">Adresse / Localisation</label>
-              <input v-model="editingProjectData.address" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">Adresse / Localisation</label>
+                <input v-model="editingProjectData.address" placeholder="Ex: 12 rue de la Paix, 75000 Paris" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Globe class="h-3.5 w-3.5 text-indigo-600" /> Site Web / Lien URL
+                </label>
+                <input v-model="editingProjectData.website" placeholder="Ex: www.mon-site.fr ou https://..." class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all font-medium" />
+              </div>
             </div>
 
             <!-- Rendez-vous Fields in Edit Form -->
@@ -1043,6 +1089,18 @@ const exportCSV = () => {
                       {{ selectedProject.address }}
                     </a>
                   </div>
+                  <div v-if="selectedProject.website" class="flex items-center gap-2 pt-0.5">
+                    <Globe class="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    <a 
+                      :href="formatUrl(selectedProject.website)" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      class="text-indigo-600 font-bold hover:underline flex items-center gap-1 text-xs break-all"
+                    >
+                      <span>{{ selectedProject.website }}</span>
+                      <ExternalLink class="h-3 w-3 shrink-0" />
+                    </a>
+                  </div>
                 </div>
               </div>
 
@@ -1057,10 +1115,48 @@ const exportCSV = () => {
               </div>
             </div>
 
+            <!-- Site Web / Lien Direct & Modifiable -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-2 relative shadow-xs">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg" :class="selectedProject.website ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'">
+                  <Globe class="h-4 w-4" />
+                </div>
+                <div class="flex-1">
+                  <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Site Web / Lien du Client</h4>
+                  <p class="text-[10px] text-slate-400 font-medium">Lien direct vers le site web ou réseau social du prospect</p>
+                </div>
+                <a 
+                  v-if="selectedProject.website" 
+                  :href="formatUrl(selectedProject.website)" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors shadow-2xs"
+                  title="Visiter le site web"
+                >
+                  <Globe class="h-3.5 w-3.5" />
+                  <span>Ouvrir</span>
+                  <ExternalLink class="h-3.5 w-3.5 ml-0.5" />
+                </a>
+              </div>
+              <input 
+                :value="selectedProject.website || ''"
+                @change="(e) => {
+                  const val = (e.target as HTMLInputElement).value;
+                  if (selectedProject) {
+                    selectedProject.website = val;
+                    updateWebsite(selectedProject.id, val);
+                  }
+                }"
+                type="text" 
+                placeholder="Ex: www.mon-client.fr ou https://..." 
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium text-slate-700"
+              />
+            </div>
+
             <!-- Description -->
             <div v-if="selectedProject.description" class="bg-amber-50/60 p-4 rounded-xl border border-amber-200/60 space-y-1">
               <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Besoins du client & Notes</h4>
-              <p class="text-xs text-amber-800 whitespace-pre-wrap">{{ selectedProject.description }}</p>
+              <p class="text-xs text-amber-800 whitespace-pre-wrap leading-relaxed" v-html="parseTextWithLinks(selectedProject.description)"></p>
             </div>
 
             <!-- PHOTO GALLERY SECTION -->
@@ -1266,13 +1362,25 @@ const exportCSV = () => {
             </div>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-700">Adresse / Ville</label>
-            <input 
-              v-model="newProject.address"
-              placeholder="Ex: 15 rue de Paris, 75001 Paris"
-              class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all"
-            />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">Adresse / Ville</label>
+              <input 
+                v-model="newProject.address"
+                placeholder="Ex: 15 rue de Paris, 75001 Paris"
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe class="h-3.5 w-3.5 text-indigo-600" /> Site Web / Lien URL (Optionnel)
+              </label>
+              <input 
+                v-model="newProject.website"
+                placeholder="Ex: www.client.fr ou https://..."
+                class="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+              />
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">

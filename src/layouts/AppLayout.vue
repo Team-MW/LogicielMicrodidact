@@ -48,7 +48,15 @@ const logout = () => {
   router.push('/login')
 }
 
-const navItems = [
+interface NavItem {
+  name: string
+  icon: any
+  path: string
+  special?: boolean
+  mtAuto?: boolean
+}
+
+const navItems: NavItem[] = [
   { name: 'Tableau de Bord', icon: LayoutDashboard, path: '/' },
   { name: 'Encaissement', icon: ShoppingCart, path: '/pos' },
   { name: 'Suivi Vitrine', icon: Briefcase, path: '/projects' },
@@ -96,8 +104,8 @@ const navItems = [
           :class="[
             item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : item.commercialSpecial ? 'bg-indigo-600 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
-              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : item.commercialSpecial ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900')
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />
@@ -138,8 +146,8 @@ const navItems = [
           :class="[
             item.mtAuto ? 'mt-auto' : '',
             $route.path === item.path 
-              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : item.commercialSpecial ? 'bg-indigo-600 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
-              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium' : item.commercialSpecial ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium')
+              ? (item.special ? 'bg-amber-500 text-white shadow-sm font-bold' : 'bg-primary text-primary-foreground shadow-sm font-bold') 
+              : (item.special ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium')
           ]"
         >
           <component :is="item.icon" class="h-5 w-5 shrink-0" />

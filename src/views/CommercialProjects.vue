@@ -623,24 +623,7 @@ const exportCSV = () => {
         @click="selectedProject = project"
       >
         <CardHeader class="p-4 pb-2 space-y-1">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1">
-              <Badge variant="outline" :class="[getStatusColor(project.status), 'text-[10px] px-2 py-0.5 font-bold border']">
-                {{ project.status }}
-              </Badge>
-              <Badge variant="outline" class="text-[10px] px-2 py-0.5 font-bold border bg-slate-50 text-slate-700">
-                {{ project.estimated_amount ? project.estimated_amount + ' €' : 'À chiffrer' }}
-              </Badge>
-              <Badge variant="outline" class="text-[10px] px-1.5 py-0.5 font-bold border bg-indigo-50 text-indigo-700" title="Photos attachées">
-                📷 {{ (project.photos || []).length }}
-              </Badge>
-            </div>
-            <span class="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
-              <Calendar class="h-3 w-3 text-slate-400" /> {{ project.deadline || 'Sans date' }}
-            </span>
-          </div>
-
-          <CardTitle class="text-base text-slate-900 font-bold tracking-tight truncate pt-1">{{ project.name }}</CardTitle>
+          <CardTitle class="text-base text-slate-900 font-bold tracking-tight truncate">{{ project.name }}</CardTitle>
           <CardDescription class="text-slate-400 text-xs truncate">
             Client: <span class="font-bold text-slate-700">{{ project.client }}</span>
             <span v-if="project.contact_phone" class="ml-1 text-indigo-600 font-semibold">• {{ project.contact_phone }}</span>
